@@ -2,29 +2,31 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../widgets/app_drawer.dart';
 
-/// Página de historial para un miembro individual.
-class HistoryPage extends StatelessWidget {
-  final Member? member;
-  final Map<String, dynamic>? args;
+/// Tab que muestra el historial global de un equipo.
+class HistoryTab extends StatelessWidget {
+  final Team team;
+  final Member currentUser;
+  final List<Team> allTeams;
+  final List<Suggestion> suggestions;
 
-  const HistoryPage({super.key, this.member, this.args});
+  const HistoryTab({
+    super.key,
+    required this.team,
+    required this.currentUser,
+    required this.allTeams,
+    required this.suggestions,
+  });
 
   @override
   Widget build(BuildContext context) {
-    // Si no hay miembro, mostramos un mensaje
-    if (member == null) {
-      return const Scaffold(
-        body: Center(child: Text("No se ha especificado un miembro")),
-      );
-    }
-
-    final historyItems = List<HistoryItem>.from(member!.history)
+    // El historial global se arma a partir de teamHistory
+    final historyItems = List<HistoryItem>.from(team.teamHistory)
       ..sort((a, b) => b.date.compareTo(a.date));
 
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: true,
-        title: Text("Historial de ${member!.name}"),
+        automaticallyImplyLeading: false,
+        title: Text("Historial de ${team.name}"),
         actions: [
           Builder(
             builder: (context) => IconButton(
@@ -36,9 +38,15 @@ class HistoryPage extends StatelessWidget {
           ),
         ],
       ),
-      endDrawer: AppDrawer(args: args ?? {}),
+      endDrawer: AppDrawer(
+        args: {
+          'currentUser': currentUser,
+          'teams': allTeams,
+          'suggestions': suggestions,
+        },
+      ),
       body: historyItems.isEmpty
-          ? const Center(child: Text("No hay historial de este miembro"))
+          ? const Center(child: Text("No hay historial del equipo"))
           : ListView.builder(
               itemCount: historyItems.length,
               itemBuilder: (context, index) {

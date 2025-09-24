@@ -11,7 +11,8 @@ import '../config/app_config.dart';
 /// 2. Comparación entre equipos (gráfico de barras)
 /// 3. Detalle por integrantes de cada equipo (gráfico de barras por miembro)
 class StatsPage extends StatelessWidget {
-  const StatsPage({super.key});
+  final Map<String, dynamic> args;
+  const StatsPage({super.key, this.args = const {}});
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +31,7 @@ class StatsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text("📊 Estadísticas")),
-      drawer: const AppDrawer(),
+      endDrawer: AppDrawer(args: args),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -289,7 +290,6 @@ class StatsPage extends StatelessWidget {
   // FUNCIONES AUXILIARES
   // =============================
 
-  /// Construye la leyenda de colores
   Widget _buildLegend(Color color, String text) {
     return Row(
       children: [
@@ -304,15 +304,12 @@ class StatsPage extends StatelessWidget {
     );
   }
 
-  /// Construye barras de equipos (totales de cada equipo)
   List<BarChartGroupData> _buildTeamBarGroups() {
     List<BarChartGroupData> groups = [];
-
     for (int i = 0; i < mockTeams.length; i++) {
       final team = mockTeams[i];
       int positives = team.members.fold(0, (sum, m) => sum + m.positives);
       int negatives = team.members.fold(0, (sum, m) => sum + m.negatives);
-
       groups.add(
         BarChartGroupData(
           x: i,
@@ -332,17 +329,14 @@ class StatsPage extends StatelessWidget {
         ),
       );
     }
-
     return groups;
   }
 
-  /// Construye barras por miembro de un equipo
   List<BarChartGroupData> _buildMemberBarGroups(
     List<int> positives,
     List<int> negatives,
   ) {
     List<BarChartGroupData> groups = [];
-
     for (int i = 0; i < positives.length; i++) {
       groups.add(
         BarChartGroupData(
@@ -363,11 +357,9 @@ class StatsPage extends StatelessWidget {
         ),
       );
     }
-
     return groups;
   }
 
-  /// Máximo valor Y global para el gráfico de equipos
   int _getMaxYTeams(List<Team> teams) {
     int maxVal = 0;
     for (var team in teams) {
@@ -378,7 +370,6 @@ class StatsPage extends StatelessWidget {
     return maxVal + 5;
   }
 
-  /// Máximo valor Y para un equipo individual
   int _getMaxY(List<int> positives, List<int> negatives) {
     final maxPos = positives.isNotEmpty
         ? positives.reduce((a, b) => a > b ? a : b)

@@ -113,7 +113,7 @@ lib/
 
 ## 👨‍💻 Autor
 
-Proyecto desarrollado como práctica y evolución en Flutter.
+Proyecto desarrollado como práctica y evolución en Flutter por Daniel Campos.
 
 ```
 

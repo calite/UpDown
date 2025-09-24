@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
-import '../models/models.dart';
-import '../data/mock_data.dart';
-import '../widgets/team_card.dart';
-import '../widgets/custom_dialog.dart';
-import '../widgets/app_drawer.dart'; // importamos el Drawer
+import 'package:up_down/models/models.dart';
+import 'package:up_down/data/mock_data.dart';
+import 'package:up_down/widgets/base_scaffold.dart';
 
-enum TeamFilter { all, active }
-
-/// Pantalla que muestra todos los equipos del usuario.
-/// Desde aquí se puede: crear equipos, dar de baja/reactivar y navegar al detalle.
 class TeamsPage extends StatefulWidget {
   const TeamsPage({super.key});
 
@@ -17,58 +11,85 @@ class TeamsPage extends StatefulWidget {
 }
 
 class _TeamsPageState extends State<TeamsPage> {
-  TeamFilter _filter = TeamFilter.all;
-
   @override
   Widget build(BuildContext context) {
-    // Filtrar equipos activos/inactivos
-    final filteredTeams = _filter == TeamFilter.all
-        ? mockTeams
-        : mockTeams.where((t) => t.isActive).toList();
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("Mis Equipos")),
-      drawer: const AppDrawer(),
+    final Member currentUser =
+        args?['currentUser'] as Member? ??
+        Member(name: "Invitado", role: UserRole.admin);
+    final List<Team> allTeams = args?['allTeams'] as List<Team>? ?? mockTeams;
+    final List<Suggestion> suggestions =
+        args?['suggestions'] as List<Suggestion>? ?? [];
+
+    return BaseScaffold(
+      title: "Mis equipos",
+      args: {
+        'currentUser': currentUser,
+        'teams': allTeams,
+        'suggestions': suggestions,
+      },
       body: ListView.builder(
-        itemCount: filteredTeams.length,
+        itemCount: allTeams.length,
         itemBuilder: (context, index) {
-          final team = filteredTeams[index];
-          return TeamCard(
-            team: team,
+          final team = allTeams[index];
+          return ListTile(
+            leading: const Icon(Icons.group),
+            title: Text(team.name),
+            subtitle: Text("${team.members.length} miembros"),
+            trailing: const Icon(Icons.arrow_forward_ios),
             onTap: () {
-              Navigator.pushNamed(context, '/team-detail', arguments: team);
-            },
-            onToggleActive: () {
-              setState(() {
-                team.isActive = !team.isActive;
-              });
+              Navigator.pushNamed(
+                context,
+                '/team-detail',
+                arguments: {
+                  'team': team,
+                  'currentUser': currentUser,
+                  'suggestions': suggestions,
+                  'allTeams': allTeams,
+                },
+              );
             },
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        child: const Icon(Icons.add),
-        onPressed: () {
-          _showAddTeamDialog(context);
-        },
-      ),
+      floatingActionButton: currentUser.role == UserRole.admin
+          ? FloatingActionButton(
+              child: const Icon(Icons.add),
+              onPressed: () {
+                _showAddTeamDialog(context, allTeams);
+              },
+            )
+          : null,
     );
   }
 
-  /// Diálogo para crear un nuevo equipo
-  void _showAddTeamDialog(BuildContext context) {
+  void _showAddTeamDialog(BuildContext context, List<Team> allTeams) {
+    final controller = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => CustomDialog(
-        title: "Crear nuevo equipo",
-        labelText: "Nombre del equipo",
-        hintText: "Introduce el nombre",
-        confirmText: "Crear",
-        onConfirm: (value) {
-          setState(() {
-            mockTeams.add(Team(name: value, members: []));
-          });
-        },
+      builder: (_) => AlertDialog(
+        title: const Text("Crear equipo"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "Nombre del equipo"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                allTeams.add(Team(name: controller.text, members: []));
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Crear"),
+          ),
+        ],
       ),
     );
   }

@@ -1,29 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:up_down/models/models.dart';
+import 'package:up_down/data/mock_data.dart'; // donde tienes mockTeams
 
-/// Pantalla inicial de la app.
-/// De momento es un login muy básico con un solo botón para ir a la página de equipos.
-/// Más adelante aquí se podrá integrar Firebase Auth o cualquier sistema de autenticación.
+/// Pantalla de login de prueba.
+/// Permite elegir entre Admin o Member para testear los roles.
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // AppBar con el título de la app
-      appBar: AppBar(title: const Text("UpDown - Login")),
-
-      // Cuerpo de la pantalla
+      appBar: AppBar(title: const Text("Login")),
       body: Center(
-        // Botón principal de inicio de sesión
-        child: ElevatedButton(
-          // Acción al pulsar el botón
-          onPressed: () {
-            // Navegamos a la página de equipos y reemplazamos el login
-            // (para que no se pueda volver atrás con el botón "atrás")
-            Navigator.pushReplacementNamed(context, '/teams');
-          },
-          // Texto dentro del botón
-          child: const Text("Iniciar sesión"),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.admin_panel_settings),
+              label: const Text("Login como Admin"),
+              onPressed: () {
+                // Creamos un usuario administrador
+                final adminUser = Member(
+                  name: "Admin Demo",
+                  role: UserRole.admin,
+                );
+
+                // Navegamos a la lista de equipos
+                Navigator.pushReplacementNamed(
+                  context,
+                  '/teams',
+                  arguments: {
+                    'currentUser': adminUser,
+                    'teams': mockTeams,
+                    'suggestions': <Suggestion>[], // lista vacía inicial
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.person),
+              label: const Text("Login como Miembro"),
+              onPressed: () {
+                // Creamos un usuario normal
+                final memberUser = Member(
+                  name: "Usuario Demo",
+                  role: UserRole.user,
+                );
+
+                Navigator.pushReplacementNamed(
+                  context,
+                  '/teams',
+                  arguments: {
+                    'currentUser': memberUser,
+                    'teams': mockTeams,
+                    'suggestions': <Suggestion>[],
+                  },
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

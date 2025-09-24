@@ -1,61 +1,89 @@
 import 'package:flutter/material.dart';
+import 'package:up_down/models/models.dart';
 
-/// Widget reutilizable que representa el menú lateral (Drawer).
-/// Se incluye en todas las pantallas principales mediante:
-///   drawer: const AppDrawer()
-/// en el Scaffold.
 class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key});
+  final Map<String, dynamic> args;
+
+  const AppDrawer({super.key, required this.args});
 
   @override
   Widget build(BuildContext context) {
+    final Member currentUser =
+        args['currentUser'] as Member? ??
+        Member(name: "Invitado", role: UserRole.admin);
+    final List<Team> teams = args['teams'] as List<Team>? ?? [];
+    final List<Suggestion> suggestions =
+        args['suggestions'] as List<Suggestion>? ?? [];
+
     return Drawer(
-      // ListView para mostrar las opciones del menú
       child: ListView(
-        padding: EdgeInsets.zero, // sin margen extra arriba
+        padding: EdgeInsets.zero,
         children: [
-          // Cabecera superior del menú
-          const DrawerHeader(
-            decoration: BoxDecoration(color: Colors.blue),
-            child: Text(
-              "Menú",
-              style: TextStyle(color: Colors.white, fontSize: 20),
+          UserAccountsDrawerHeader(
+            accountName: Text(currentUser.name),
+            accountEmail: Text(currentUser.role.toString().split('.').last),
+            currentAccountPicture: const CircleAvatar(
+              child: Icon(Icons.person, size: 40),
             ),
           ),
 
-          // Opción: navegar a Mis equipos
+          // =========================
+          // Opción: Equipos
+          // =========================
           ListTile(
             leading: const Icon(Icons.group),
             title: const Text("Mis equipos"),
             onTap: () {
-              Navigator.pushReplacementNamed(context, '/teams');
+              Navigator.pop(context);
+              Navigator.pushNamed(
+                context,
+                '/teams',
+                arguments: {
+                  'currentUser': currentUser,
+                  'teams': teams,
+                  'suggestions': suggestions,
+                },
+              );
             },
           ),
 
-          // Opción: navegar a Estadísticas
+          // =========================
+          // Opción: Estadísticas
+          // =========================
           ListTile(
             leading: const Icon(Icons.bar_chart),
             title: const Text("Estadísticas"),
             onTap: () {
-              Navigator.pushReplacementNamed(context, '/stats');
+              Navigator.pop(context);
+              Navigator.pushNamed(
+                context,
+                '/stats',
+                arguments: {
+                  'currentUser': currentUser,
+                  'teams': teams,
+                  'suggestions': suggestions,
+                },
+              );
             },
           ),
 
-          // Opción: navegar a Configuración
+          // =========================
+          // Opción: Configuración
+          // =========================
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text("Configuración"),
             onTap: () {
-              Navigator.pushReplacementNamed(context, '/settings');
-            },
-          ),
-
-          // Opción: cerrar sesión y volver al login
-          ListTile(
-            leading: const Icon(Icons.logout),
-            title: const Text("Cerrar sesión"),
-            onTap: () {
-              Navigator.pushReplacementNamed(context, '/');
+              Navigator.pop(context);
+              Navigator.pushNamed(
+                context,
+                '/settings',
+                arguments: {
+                  'currentUser': currentUser,
+                  'teams': teams,
+                  'suggestions': suggestions,
+                },
+              );
             },
           ),
         ],

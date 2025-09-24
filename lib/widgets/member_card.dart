@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
-import '../models/models.dart';
+import 'package:up_down/models/models.dart';
 
-/// Widget reutilizable que muestra la información de un miembro
-/// (nombre, positivos, negativos, estado activo/inactivo)
-/// con acciones asociadas (👍 👎 historial dar de baja/reactivar).
 class MemberCard extends StatelessWidget {
-  final Member member; // miembro a mostrar
-  final VoidCallback? onPositive; // acción al dar 👍
-  final VoidCallback? onNegative; // acción al dar 👎
-  final VoidCallback? onHistory; // acción al abrir historial
-  final VoidCallback? onToggleActive; // acción al dar de baja/reactivar
+  final Member member;
+  final Member currentUser;
+  final Team team;
+
+  final VoidCallback? onHistory;
+  final VoidCallback? onSuggestPositive;
+  final VoidCallback? onSuggestNegative;
+  final VoidCallback? onDirectPositive;
+  final VoidCallback? onDirectNegative;
+  final VoidCallback? onToggleActive;
+  final VoidCallback? onMakeAdmin;
 
   const MemberCard({
     super.key,
     required this.member,
-    this.onPositive,
-    this.onNegative,
+    required this.currentUser,
+    required this.team,
     this.onHistory,
+    this.onSuggestPositive,
+    this.onSuggestNegative,
+    this.onDirectPositive,
+    this.onDirectNegative,
     this.onToggleActive,
+    this.onMakeAdmin,
   });
 
   @override
@@ -25,53 +33,61 @@ class MemberCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: ListTile(
-        // Nombre del miembro (tachado y gris si está inactivo)
-        title: Text(
-          member.name,
-          style: TextStyle(
-            color: member.isActive ? Colors.black : Colors.grey,
-            decoration: member.isActive ? null : TextDecoration.lineThrough,
-          ),
-        ),
-
-        // Subtítulo con los puntos y estado
+        title: Text(member.name),
         subtitle: Text(
-          "Positivos: ${member.positives} | Negativos: ${member.negatives}" +
-              (member.isActive ? "" : " (Inactivo)"),
+          "Positivos: ${member.positives} | Negativos: ${member.negatives}",
         ),
-
-        // Zona de botones a la derecha
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Botón 👍 → solo habilitado si el miembro está activo
+            // Botón positivo
             IconButton(
               icon: const Icon(Icons.thumb_up, color: Colors.green),
-              onPressed: member.isActive ? onPositive : null,
+              onPressed: () {
+                if (currentUser.role == UserRole.user &&
+                    currentUser != member) {
+                  onSuggestPositive?.call();
+                } else if (currentUser.role == UserRole.admin) {
+                  onDirectPositive?.call();
+                }
+              },
             ),
-
-            // Botón 👎 → solo habilitado si el miembro está activo
+            // Botón negativo
             IconButton(
               icon: const Icon(Icons.thumb_down, color: Colors.red),
-              onPressed: member.isActive ? onNegative : null,
+              onPressed: () {
+                if (currentUser.role == UserRole.user &&
+                    currentUser != member) {
+                  onSuggestNegative?.call();
+                } else if (currentUser.role == UserRole.admin) {
+                  onDirectNegative?.call();
+                }
+              },
             ),
-
-            // Botón 📜 historial → abre la pantalla de historial
-            IconButton(
-              icon: const Icon(Icons.history, color: Colors.blue),
-              onPressed: onHistory,
-            ),
-
-            // Botón 👤 baja/reactivar
-            IconButton(
-              icon: Icon(
-                member.isActive ? Icons.person_off : Icons.person_add,
-                color: member.isActive ? Colors.orange : Colors.green,
+            // Menú extra solo para admin
+            if (currentUser.role == UserRole.admin)
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == "toggleActive") {
+                    onToggleActive?.call();
+                  } else if (value == "makeAdmin") {
+                    onMakeAdmin?.call();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: "toggleActive",
+                    child: Text(member.isActive ? "Deshabilitar" : "Reactivar"),
+                  ),
+                  const PopupMenuItem(
+                    value: "makeAdmin",
+                    child: Text("Hacer administrador"),
+                  ),
+                ],
               ),
-              onPressed: onToggleActive,
-            ),
           ],
         ),
+        onTap: onHistory,
       ),
     );
   }
