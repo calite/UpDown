@@ -39,6 +39,7 @@ class _HomePageState extends State<HomePage> {
       PendingSuggestionsTab(
         team: widget.team,
         currentUser: widget.currentUser,
+        allTeams: widget.allTeams,
         suggestions: widget.suggestions,
       ),
       HistoryTab(

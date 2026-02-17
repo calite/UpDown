@@ -1,12 +1,22 @@
+import 'dart:math';
+
 import 'package:up_down/config/app_config.dart';
 
-/// Roles de usuario dentro de un grupo.
-/// - admin: puede asignar directamente positivos/negativos y crear grupos.
-/// - user: solo puede sugerir dentro de un grupo.
 enum UserRole { admin, user }
 
-/// Representa a un miembro de un equipo.
+class _Id {
+  static final Random _random = Random();
+
+  static String next() {
+    final now = DateTime.now().microsecondsSinceEpoch;
+    // En web, los desplazamientos de 32 bits pueden desbordar a 0.
+    final r = _random.nextInt(0x7fffffff);
+    return '${now}_$r';
+  }
+}
+
 class Member {
+  final String id;
   String name;
   int positives;
   int negatives;
@@ -15,74 +25,111 @@ class Member {
   UserRole role;
 
   Member({
+    String? id,
     required this.name,
     this.positives = 0,
     this.negatives = 0,
     this.isActive = true,
     List<HistoryItem>? history,
     this.role = UserRole.user,
-  }) : history = history ?? [];
+  })  : id = id ?? _Id.next(),
+        history = history ?? [];
 
-  /// Calcula el puntaje total en base a la configuración de scoring.
   int get totalScore {
     return (positives * AppConfig.positiveValue) +
         (negatives * AppConfig.negativeValue);
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'positives': positives,
+      'negatives': negatives,
+      'isActive': isActive,
+      'role': role.name,
+      'history': history.map((item) => item.toMap()).toList(),
+    };
+  }
+
+  factory Member.fromMap(Map<String, dynamic> map) {
+    final historyData = (map['history'] as List<dynamic>? ?? []);
+    return Member(
+      id: map['id'] as String?,
+      name: map['name'] as String? ?? 'Sin nombre',
+      positives: (map['positives'] as num?)?.toInt() ?? 0,
+      negatives: (map['negatives'] as num?)?.toInt() ?? 0,
+      isActive: map['isActive'] as bool? ?? true,
+      role: (map['role'] as String?) == UserRole.admin.name
+          ? UserRole.admin
+          : UserRole.user,
+      history: historyData
+          .whereType<Map>()
+          .map((item) => HistoryItem.fromMap(Map<String, dynamic>.from(item)))
+          .toList(),
+    );
+  }
 }
 
-/// Configuración de un equipo.
-/// Permite ajustar reglas específicas para cada grupo.
 class TeamSettings {
-  /// Indica si se permiten sugerencias de usuarios que no pertenecen al equipo.
   bool allowExternalSuggestions;
 
   TeamSettings({this.allowExternalSuggestions = false});
+
+  Map<String, dynamic> toMap() {
+    return {'allowExternalSuggestions': allowExternalSuggestions};
+  }
+
+  factory TeamSettings.fromMap(Map<String, dynamic> map) {
+    return TeamSettings(
+      allowExternalSuggestions: map['allowExternalSuggestions'] as bool? ?? false,
+    );
+  }
 }
 
-/// Representa un equipo con sus miembros, configuración e histórico global.
 class Team {
+  final String id;
   final String name;
   final List<Member> members;
   bool isActive;
   TeamSettings settings;
-
-  /// Histórico global del equipo (todas las acciones realizadas).
   final List<HistoryItem> teamHistory = [];
-
-  /// Sugerencias pendientes de aprobación/rechazo
   final List<Suggestion> pendingSuggestions = [];
 
   Team({
+    String? id,
     required this.name,
     required this.members,
     this.isActive = true,
     TeamSettings? settings,
-  }) : settings = settings ?? TeamSettings();
+    List<HistoryItem>? teamHistory,
+  })  : id = id ?? _Id.next(),
+        settings = settings ?? TeamSettings() {
+    if (teamHistory != null) {
+      this.teamHistory.addAll(teamHistory);
+    }
+  }
 
-  /// Devuelve la lista de administradores del equipo.
   List<Member> get admins =>
       members.where((m) => m.role == UserRole.admin).toList();
 
-  /// Agrega un nuevo administrador (solo un admin existente puede hacerlo).
   void addAdmin(Member requester, Member newAdmin) {
     if (requester.role != UserRole.admin) {
-      throw Exception("Solo un administrador puede asignar nuevos admins.");
+      throw Exception('Solo un administrador puede asignar nuevos admins.');
     }
     newAdmin.role = UserRole.admin;
   }
 
-  /// Un usuario sugiere un positivo/negativo → se guarda como pendiente.
   void addSuggestion(Suggestion suggestion) {
     pendingSuggestions.add(suggestion);
   }
 
-  /// Aprueba una sugerencia (solo admins).
   void approveSuggestion(Member requester, Suggestion suggestion) {
     if (requester.role != UserRole.admin) {
-      throw Exception("Solo un administrador puede aprobar sugerencias.");
+      throw Exception('Solo un administrador puede aprobar sugerencias.');
     }
     if (suggestion.approved || suggestion.rejected) {
-      throw Exception("La sugerencia ya fue gestionada.");
+      throw Exception('La sugerencia ya fue gestionada.');
     }
 
     suggestion.approved = true;
@@ -98,7 +145,7 @@ class Team {
 
     teamHistory.add(
       HistoryItem(
-        "APROBADA: ${historyItem.description} (por ${requester.name})",
+        'APROBADA: ${historyItem.description} (por ${requester.name})',
         DateTime.now(),
       ),
     );
@@ -106,32 +153,31 @@ class Team {
     pendingSuggestions.remove(suggestion);
   }
 
-  /// Rechaza una sugerencia (solo admins).
   void rejectSuggestion(
     Member requester,
     Suggestion suggestion, {
     String? comment,
   }) {
     if (requester.role != UserRole.admin) {
-      throw Exception("Solo un administrador puede rechazar sugerencias.");
+      throw Exception('Solo un administrador puede rechazar sugerencias.');
     }
     if (suggestion.approved || suggestion.rejected) {
-      throw Exception("La sugerencia ya fue gestionada.");
+      throw Exception('La sugerencia ya fue gestionada.');
     }
 
     suggestion.rejected = true;
     suggestion.rejectionComment = comment;
 
     final description =
-        "SUGERENCIA RECHAZADA: ${suggestion.from.name} sugirió un "
-        "${suggestion.isPositive ? 'positivo' : 'negativo'} para "
-        "${suggestion.to.name}. Motivo: ${comment ?? 'no especificado'}";
+        'SUGERENCIA RECHAZADA: ${suggestion.from.name} sugirio un '
+        '${suggestion.isPositive ? 'positivo' : 'negativo'} para '
+        '${suggestion.to.name}. Motivo: ${comment ?? 'no especificado'}';
 
     suggestion.to.history.add(HistoryItem(description, DateTime.now()));
 
     teamHistory.add(
       HistoryItem(
-        "$description (rechazada por ${requester.name})",
+        '$description (rechazada por ${requester.name})',
         DateTime.now(),
       ),
     );
@@ -139,7 +185,6 @@ class Team {
     pendingSuggestions.remove(suggestion);
   }
 
-  /// Asigna directamente un positivo/negativo (solo admins).
   void assignDirect({
     required Member requester,
     required Member target,
@@ -148,7 +193,7 @@ class Team {
   }) {
     if (requester.role != UserRole.admin) {
       throw Exception(
-        "Solo un administrador puede asignar positivos/negativos.",
+        'Solo un administrador puede asignar positivos/negativos.',
       );
     }
 
@@ -159,37 +204,88 @@ class Team {
     }
 
     final description =
-        "${isPositive ? 'positivo' : 'negativo'} asignado por ${requester.name} "
-        "a ${target.name} ($comment)";
+        '${isPositive ? 'positivo' : 'negativo'} asignado por ${requester.name} '
+        'a ${target.name} ($comment)';
 
     target.history.add(HistoryItem(description, DateTime.now()));
 
     teamHistory.add(
-      HistoryItem("ASIGNACIÓN DIRECTA: $description", DateTime.now()),
+      HistoryItem('ASIGNACION DIRECTA: $description', DateTime.now()),
+    );
+  }
+
+  Map<String, dynamic> toMap({bool includeMembers = true}) {
+    return {
+      'id': id,
+      'name': name,
+      'isActive': isActive,
+      'settings': settings.toMap(),
+      'teamHistory': teamHistory.map((item) => item.toMap()).toList(),
+      if (includeMembers) 'members': members.map((member) => member.toMap()).toList(),
+    };
+  }
+
+  factory Team.fromMap(Map<String, dynamic> map) {
+    final membersData = (map['members'] as List<dynamic>? ?? []);
+    final historyData = (map['teamHistory'] as List<dynamic>? ?? []);
+
+    return Team(
+      id: map['id'] as String?,
+      name: map['name'] as String? ?? 'Equipo sin nombre',
+      members: membersData
+          .whereType<Map>()
+          .map((item) => Member.fromMap(Map<String, dynamic>.from(item)))
+          .toList(),
+      isActive: map['isActive'] as bool? ?? true,
+      settings: TeamSettings.fromMap(
+        map['settings'] is Map
+            ? Map<String, dynamic>.from(map['settings'] as Map)
+            : const {},
+      ),
+      teamHistory: historyData
+          .whereType<Map>()
+          .map((item) => HistoryItem.fromMap(Map<String, dynamic>.from(item)))
+          .toList(),
     );
   }
 }
 
-/// Elemento histórico de acciones (positivo/negativo aplicado, rechazo, etc.)
 class HistoryItem {
   final String description;
   final DateTime date;
 
   HistoryItem(this.description, this.date);
+
+  Map<String, dynamic> toMap() {
+    return {
+      'description': description,
+      'date': date.toIso8601String(),
+    };
+  }
+
+  factory HistoryItem.fromMap(Map<String, dynamic> map) {
+    return HistoryItem(
+      map['description'] as String? ?? '',
+      DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now(),
+    );
+  }
 }
 
-/// Representa una sugerencia hecha por un usuario.
 class Suggestion {
-  final Member from; // Quién sugiere
-  final Member to; // Destinatario
+  final String id;
+  final Member from;
+  final Member to;
   final bool isPositive;
   final String comment;
   bool approved;
   bool rejected;
   String? rejectionComment;
   DateTime date;
+  String? teamId;
+  String? teamName;
 
   Suggestion({
+    String? id,
     required this.from,
     required this.to,
     required this.isPositive,
@@ -198,14 +294,83 @@ class Suggestion {
     this.rejected = false,
     this.rejectionComment,
     DateTime? date,
-  }) : date = date ?? DateTime.now();
+    this.teamId,
+    this.teamName,
+  })  : id = id ?? _Id.next(),
+        date = date ?? DateTime.now();
 
   String get description =>
-      "${from.name} sugirió un ${isPositive ? 'positivo' : 'negativo'} "
-      "para ${to.name}: \"$comment\"";
+      '${from.name} sugirio un ${isPositive ? 'positivo' : 'negativo'} '
+      'para ${to.name}: "$comment"';
 
   HistoryItem toHistoryItem() {
-    final action = isPositive ? "positivo" : "negativo";
-    return HistoryItem("$action para ${to.name} ($comment)", date);
+    final action = isPositive ? 'positivo' : 'negativo';
+    return HistoryItem('$action para ${to.name} ($comment)', date);
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'teamId': teamId,
+      'teamName': teamName,
+      'fromMemberId': from.id,
+      'fromName': from.name,
+      'toMemberId': to.id,
+      'toName': to.name,
+      'isPositive': isPositive,
+      'comment': comment,
+      'approved': approved,
+      'rejected': rejected,
+      'rejectionComment': rejectionComment,
+      'date': date.toIso8601String(),
+    };
+  }
+
+  static Suggestion fromMap(
+    Map<String, dynamic> map, {
+    required Map<String, Team> teamsById,
+  }) {
+    final teamId = map['teamId'] as String?;
+    final team = teamId == null ? null : teamsById[teamId];
+
+    final fromId = map['fromMemberId'] as String?;
+    final toId = map['toMemberId'] as String?;
+
+    final fromMember = _memberById(team, fromId) ??
+        Member(
+          id: fromId,
+          name: map['fromName'] as String? ?? 'Usuario',
+        );
+
+    final toMember = _memberById(team, toId) ??
+        Member(
+          id: toId,
+          name: map['toName'] as String? ?? 'Usuario',
+        );
+
+    return Suggestion(
+      id: map['id'] as String?,
+      from: fromMember,
+      to: toMember,
+      isPositive: map['isPositive'] as bool? ?? true,
+      comment: map['comment'] as String? ?? '',
+      approved: map['approved'] as bool? ?? false,
+      rejected: map['rejected'] as bool? ?? false,
+      rejectionComment: map['rejectionComment'] as String?,
+      date: DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now(),
+      teamId: teamId,
+      teamName: map['teamName'] as String?,
+    );
+  }
+
+  static Member? _memberById(Team? team, String? memberId) {
+    if (team == null || memberId == null) {
+      return null;
+    }
+    return team.members.where((m) => m.id == memberId).firstOrNull;
+  }
+}
+
+extension _IterableFirstOrNull<E> on Iterable<E> {
+  E? get firstOrNull => isEmpty ? null : first;
 }

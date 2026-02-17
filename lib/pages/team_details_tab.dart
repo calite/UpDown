@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:up_down/models/models.dart';
-import 'package:up_down/widgets/member_card.dart';
-import 'package:up_down/widgets/custom_dialog.dart';
+import 'package:up_down/services/app_data_service.dart';
 import 'package:up_down/widgets/base_scaffold.dart';
+import 'package:up_down/widgets/custom_dialog.dart';
+import 'package:up_down/widgets/member_card.dart';
 
 enum MemberFilter { all, active }
 
@@ -27,6 +28,13 @@ class TeamDetailsTab extends StatefulWidget {
 class _TeamDetailsTabState extends State<TeamDetailsTab> {
   MemberFilter _filter = MemberFilter.all;
 
+  Future<void> _persist() {
+    return AppDataService.instance.saveState(
+      widget.allTeams,
+      widget.suggestions,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredMembers = _filter == MemberFilter.all
@@ -47,7 +55,6 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
       args: args,
       body: Column(
         children: [
-          // 🔹 Botones de filtro
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -62,7 +69,7 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                   onPressed: () {
                     setState(() => _filter = MemberFilter.all);
                   },
-                  child: const Text("Todos"),
+                  child: const Text('Todos'),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
@@ -74,13 +81,11 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                   onPressed: () {
                     setState(() => _filter = MemberFilter.active);
                   },
-                  child: const Text("Activos"),
+                  child: const Text('Activos'),
                 ),
               ],
             ),
           ),
-
-          // 🔹 Ranking
           if (ranking.isNotEmpty)
             Card(
               margin: const EdgeInsets.all(10),
@@ -91,7 +96,7 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "🏆 Ranking por positivos",
+                      'Ranking por puntaje',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -100,15 +105,13 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                     const SizedBox(height: 8),
                     for (int i = 0; i < ranking.length && i < 3; i++)
                       Text(
-                        "${i + 1}. ${ranking[i].name} - ${ranking[i].totalScore} puntos ",
+                        '${i + 1}. ${ranking[i].name} - ${ranking[i].totalScore} puntos',
                         style: const TextStyle(fontSize: 14),
                       ),
                   ],
                 ),
               ),
             ),
-
-          // 🔹 Lista de miembros
           Expanded(
             child: ListView.builder(
               itemCount: filteredMembers.length,
@@ -127,43 +130,47 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                   onSuggestNegative: () {
                     _showSuggestionDialog(context, member, false);
                   },
-                  onDirectPositive: () {
+                  onDirectPositive: () async {
                     setState(() {
                       widget.team.assignDirect(
                         requester: widget.currentUser,
                         target: member,
                         isPositive: true,
-                        comment: "Asignado directo",
+                        comment: 'Asignado directo',
                       );
                     });
+                    await _persist();
                   },
-                  onDirectNegative: () {
+                  onDirectNegative: () async {
                     setState(() {
                       widget.team.assignDirect(
                         requester: widget.currentUser,
                         target: member,
                         isPositive: false,
-                        comment: "Asignado directo",
+                        comment: 'Asignado directo',
                       );
                     });
+                    await _persist();
                   },
-                  onToggleActive: () {
+                  onToggleActive: () async {
                     setState(() {
                       member.isActive = !member.isActive;
                       member.history.add(
                         HistoryItem(
                           member.isActive
-                              ? "${member.name} fue reactivado"
-                              : "${member.name} fue dado de baja",
+                              ? '${member.name} fue reactivado'
+                              : '${member.name} fue dado de baja',
                           DateTime.now(),
                         ),
                       );
                     });
+                    await _persist();
                   },
-                  onMakeAdmin: () {
+                  onMakeAdmin: () async {
                     setState(() {
                       member.role = UserRole.admin;
                     });
+                    await _persist();
                   },
                 );
               },
@@ -182,7 +189,6 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
     );
   }
 
-  /// 🔹 Diálogo para sugerir positivo/negativo
   void _showSuggestionDialog(
     BuildContext context,
     Member target,
@@ -192,56 +198,67 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text("Sugerir ${isPositive ? "positivo" : "negativo"}"),
+        title: Text('Sugerir ${isPositive ? 'positivo' : 'negativo'}'),
         content: TextField(
           controller: controller,
           decoration: const InputDecoration(
-            hintText: "Escribe un comentario...",
+            hintText: 'Escribe un comentario...',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar"),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final suggestion = Suggestion(
                 from: widget.currentUser,
                 to: target,
                 isPositive: isPositive,
                 comment: controller.text,
+                teamId: widget.team.id,
+                teamName: widget.team.name,
               );
+
+              setState(() {
+                widget.suggestions.add(suggestion);
+                widget.team.addSuggestion(suggestion);
+              });
+              await AppDataService.instance.addSuggestion(suggestion);
+
+              if (!context.mounted) {
+                return;
+              }
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    "Sugerencia enviada: ${suggestion.description}",
+                    'Sugerencia enviada: ${suggestion.description}',
                   ),
                 ),
               );
             },
-            child: const Text("Enviar"),
+            child: const Text('Enviar'),
           ),
         ],
       ),
     );
   }
 
-  /// 🔹 Diálogo para añadir miembro
   void _showAddMemberDialog(BuildContext context, Team team) {
-    final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (_) => CustomDialog(
-        title: "Añadir miembro",
-        labelText: "Nombre",
-        hintText: "Introduce el nombre del miembro",
-        confirmText: "Añadir",
-        onConfirm: (value) {
+        title: 'Anadir miembro',
+        labelText: 'Nombre',
+        hintText: 'Introduce el nombre del miembro',
+        confirmText: 'Anadir',
+        onConfirm: (value) async {
           setState(() {
             team.members.add(Member(name: value));
           });
+          await _persist();
         },
       ),
     );

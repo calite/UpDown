@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 
 class TeamCard extends StatelessWidget {
-  final Team team; // el equipo a mostrar
-  final VoidCallback? onTap; // acción al pulsar la tarjeta (entrar al detalle)
-  final VoidCallback? onToggleActive; // acción para dar de baja/reactivar
+  final Team team;
+  final VoidCallback? onTap;
+  final VoidCallback? onToggleActive;
 
   const TeamCard({
     super.key,
@@ -18,7 +18,6 @@ class TeamCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: ListTile(
-        // Nombre del equipo (tachado si está inactivo)
         title: Text(
           team.name,
           style: TextStyle(
@@ -26,14 +25,10 @@ class TeamCard extends StatelessWidget {
             decoration: team.isActive ? null : TextDecoration.lineThrough,
           ),
         ),
-        // Número de miembros + estado
         subtitle: Text(
-          "${team.members.length} miembros" +
-              (team.isActive ? "" : " (Inactivo)"),
+          '${team.members.length} miembros${team.isActive ? ' (Inactivo)' : ''}',
         ),
-        // Acción al pulsar la tarjeta completa (solo si está activo)
         onTap: team.isActive ? onTap : null,
-        // Botón de acción (dar de baja/reactivar)
         trailing: IconButton(
           icon: Icon(
             team.isActive ? Icons.group_off : Icons.group_add,

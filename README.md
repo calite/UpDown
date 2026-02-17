@@ -117,3 +117,18 @@ Proyecto desarrollado como práctica y evolución en Flutter por Daniel Campos.
 
 ```
 
+
+## Firebase setup
+
+1. Crea un proyecto en Firebase y habilita Authentication (Email/Password).
+2. Agrega app Android e iOS y descarga:
+   - android/app/google-services.json
+   - ios/Runner/GoogleService-Info.plist
+3. Crea reglas/colecciones en Firestore para users y pp_state.
+4. Para Web, ejecuta con variables:
+   flutter run -d chrome --dart-define=FIREBASE_WEB_API_KEY=... --dart-define=FIREBASE_WEB_APP_ID=... --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID=... --dart-define=FIREBASE_WEB_PROJECT_ID=...
+5. Reglas por rol en Firestore:
+   - El proyecto incluye `firestore.rules`.
+   - Publica reglas con Firebase CLI:
+     `firebase deploy --only firestore:rules`
+

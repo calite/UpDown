@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:up_down/models/models.dart';
+import 'package:up_down/pages/auth_gate.dart';
+import 'package:up_down/services/auth_service.dart';
 
 class AppDrawer extends StatelessWidget {
   final Map<String, dynamic> args;
@@ -10,7 +12,7 @@ class AppDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final Member currentUser =
         args['currentUser'] as Member? ??
-        Member(name: "Invitado", role: UserRole.admin);
+        Member(name: 'Invitado', role: UserRole.user);
     final List<Team> teams = args['teams'] as List<Team>? ?? [];
     final List<Suggestion> suggestions =
         args['suggestions'] as List<Suggestion>? ?? [];
@@ -21,18 +23,14 @@ class AppDrawer extends StatelessWidget {
         children: [
           UserAccountsDrawerHeader(
             accountName: Text(currentUser.name),
-            accountEmail: Text(currentUser.role.toString().split('.').last),
+            accountEmail: Text(currentUser.role.name),
             currentAccountPicture: const CircleAvatar(
               child: Icon(Icons.person, size: 40),
             ),
           ),
-
-          // =========================
-          // Opción: Equipos
-          // =========================
           ListTile(
             leading: const Icon(Icons.group),
-            title: const Text("Mis equipos"),
+            title: const Text('Mis equipos'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(
@@ -46,13 +44,9 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
-
-          // =========================
-          // Opción: Estadísticas
-          // =========================
           ListTile(
             leading: const Icon(Icons.bar_chart),
-            title: const Text("Estadísticas"),
+            title: const Text('Estadisticas'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(
@@ -66,13 +60,9 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
-
-          // =========================
-          // Opción: Configuración
-          // =========================
           ListTile(
             leading: const Icon(Icons.settings),
-            title: const Text("Configuración"),
+            title: const Text('Configuracion'),
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(
@@ -83,6 +73,22 @@ class AppDrawer extends StatelessWidget {
                   'teams': teams,
                   'suggestions': suggestions,
                 },
+              );
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Cerrar sesion'),
+            onTap: () async {
+              Navigator.pop(context);
+              await AuthService.instance.signOut();
+              if (!context.mounted) {
+                return;
+              }
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const AuthGate()),
+                (route) => false,
               );
             },
           ),

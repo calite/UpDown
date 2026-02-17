@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userRole() == 'admin';
+    }
+
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /teams/{teamId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+
+      match /members/{memberId} {
+        allow read: if isSignedIn();
+        allow write: if isAdmin();
+      }
+    }
+
+    match /suggestions/{suggestionId} {
+      allow read: if isSignedIn();
+
+      // Usuario autenticado puede crear sugerencias; admins pueden
+      // gestionar (actualizar/eliminar) durante aprobación/rechazo.
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+  }
+}
