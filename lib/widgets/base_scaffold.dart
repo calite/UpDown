@@ -35,7 +35,21 @@ class BaseScaffold extends StatelessWidget {
         ],
       ),
       endDrawer: AppDrawer(args: args),
-      body: body,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF9FBFF), Color(0xFFF1F5FC)],
+          ),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100),
+            child: body,
+          ),
+        ),
+      ),
       floatingActionButton: floatingActionButton,
     );
   }

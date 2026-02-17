@@ -18,6 +18,7 @@ class _Id {
 class Member {
   final String id;
   String name;
+  String lastName;
   int positives;
   int negatives;
   bool isActive;
@@ -27,6 +28,7 @@ class Member {
   Member({
     String? id,
     required this.name,
+    this.lastName = '',
     this.positives = 0,
     this.negatives = 0,
     this.isActive = true,
@@ -40,10 +42,19 @@ class Member {
         (negatives * AppConfig.negativeValue);
   }
 
+  String get displayName {
+    final ln = lastName.trim();
+    if (ln.isEmpty) {
+      return name;
+    }
+    return '$name $ln';
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
+      'lastName': lastName,
       'positives': positives,
       'negatives': negatives,
       'isActive': isActive,
@@ -54,9 +65,14 @@ class Member {
 
   factory Member.fromMap(Map<String, dynamic> map) {
     final historyData = (map['history'] as List<dynamic>? ?? []);
+    final rawName = map['name'] as String? ?? 'Sin nombre';
+    final rawLastName = map['lastName'] as String?;
+    final resolvedLastName = rawLastName ?? _extractLastName(rawName);
+    final resolvedName = rawLastName == null ? _extractFirstName(rawName) : rawName;
     return Member(
       id: map['id'] as String?,
-      name: map['name'] as String? ?? 'Sin nombre',
+      name: resolvedName,
+      lastName: resolvedLastName,
       positives: (map['positives'] as num?)?.toInt() ?? 0,
       negatives: (map['negatives'] as num?)?.toInt() ?? 0,
       isActive: map['isActive'] as bool? ?? true,
@@ -145,7 +161,7 @@ class Team {
 
     teamHistory.add(
       HistoryItem(
-        'APROBADA: ${historyItem.description} (por ${requester.name})',
+        'APROBADA: ${historyItem.description} (por ${requester.displayName})',
         DateTime.now(),
       ),
     );
@@ -169,15 +185,15 @@ class Team {
     suggestion.rejectionComment = comment;
 
     final description =
-        'SUGERENCIA RECHAZADA: ${suggestion.from.name} sugirio un '
+        'SUGERENCIA RECHAZADA: ${suggestion.from.displayName} sugirio un '
         '${suggestion.isPositive ? 'positivo' : 'negativo'} para '
-        '${suggestion.to.name}. Motivo: ${comment ?? 'no especificado'}';
+        '${suggestion.to.displayName}. Motivo: ${comment ?? 'no especificado'}';
 
     suggestion.to.history.add(HistoryItem(description, DateTime.now()));
 
     teamHistory.add(
       HistoryItem(
-        '$description (rechazada por ${requester.name})',
+        '$description (rechazada por ${requester.displayName})',
         DateTime.now(),
       ),
     );
@@ -204,8 +220,8 @@ class Team {
     }
 
     final description =
-        '${isPositive ? 'positivo' : 'negativo'} asignado por ${requester.name} '
-        'a ${target.name} ($comment)';
+        '${isPositive ? 'positivo' : 'negativo'} asignado por ${requester.displayName} '
+        'a ${target.displayName} ($comment)';
 
     target.history.add(HistoryItem(description, DateTime.now()));
 
@@ -300,12 +316,12 @@ class Suggestion {
         date = date ?? DateTime.now();
 
   String get description =>
-      '${from.name} sugirio un ${isPositive ? 'positivo' : 'negativo'} '
-      'para ${to.name}: "$comment"';
+      '${from.displayName} sugirio un ${isPositive ? 'positivo' : 'negativo'} '
+      'para ${to.displayName}: "$comment"';
 
   HistoryItem toHistoryItem() {
     final action = isPositive ? 'positivo' : 'negativo';
-    return HistoryItem('$action para ${to.name} ($comment)', date);
+    return HistoryItem('$action para ${to.displayName} ($comment)', date);
   }
 
   Map<String, dynamic> toMap() {
@@ -373,4 +389,20 @@ class Suggestion {
 
 extension _IterableFirstOrNull<E> on Iterable<E> {
   E? get firstOrNull => isEmpty ? null : first;
+}
+
+String _extractFirstName(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) {
+    return 'Sin nombre';
+  }
+  return parts.first;
+}
+
+String _extractLastName(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.length < 2) {
+    return '';
+  }
+  return parts.sublist(1).join(' ');
 }

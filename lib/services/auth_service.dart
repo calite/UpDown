@@ -22,6 +22,7 @@ class AuthService {
     required String email,
     required String password,
     required String name,
+    required String lastName,
     required UserRole role,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
@@ -32,6 +33,7 @@ class AuthService {
     final uid = credential.user!.uid;
     await _firestore.collection('users').doc(uid).set({
       'name': name,
+      'lastName': lastName,
       'role': role.name,
       'email': email,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -47,13 +49,31 @@ class AuthService {
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
     final data = userDoc.data() ?? <String, dynamic>{};
     final name = (data['name'] as String?)?.trim();
+    final lastName = (data['lastName'] as String?)?.trim() ?? '';
     final roleName = data['role'] as String?;
 
     return Member(
       id: user.uid,
       name: name == null || name.isEmpty ? user.email ?? 'Usuario' : name,
+      lastName: lastName,
       role: roleName == UserRole.admin.name ? UserRole.admin : UserRole.user,
     );
+  }
+
+  Future<void> updateCurrentUserProfile({
+    required String name,
+    required String lastName,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('No hay un usuario autenticado.');
+    }
+
+    await _firestore.collection('users').doc(user.uid).set({
+      'name': name.trim(),
+      'lastName': lastName.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> signOut() => _auth.signOut();

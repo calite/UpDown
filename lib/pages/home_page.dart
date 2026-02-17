@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/pages/history_tab.dart';
-import 'package:up_down/pages/team_details_tab.dart';
 import 'package:up_down/pages/pending_suggestions_tab.dart';
-import 'package:up_down/widgets/app_drawer.dart';
+import 'package:up_down/pages/team_details_tab.dart';
 
 class HomePage extends StatefulWidget {
   final Team team;
@@ -28,7 +27,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Páginas de las tabs
     final pages = [
       TeamDetailsTab(
         team: widget.team,
@@ -51,14 +49,6 @@ class _HomePageState extends State<HomePage> {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.team.name)),
-      drawer: AppDrawer(
-        args: {
-          'currentUser': widget.currentUser,
-          'teams': widget.allTeams,
-          'suggestions': widget.suggestions,
-        },
-      ),
       body: pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
@@ -68,15 +58,12 @@ class _HomePageState extends State<HomePage> {
           });
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.group), label: "Miembros"),
+          BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Miembros'),
           BottomNavigationBarItem(
             icon: Icon(Icons.pending_actions),
-            label: "Sugerencias",
+            label: 'Sugerencias',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: "Histórico",
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Historico'),
         ],
       ),
     );

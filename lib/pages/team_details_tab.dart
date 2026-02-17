@@ -29,10 +29,24 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
   MemberFilter _filter = MemberFilter.all;
 
   Future<void> _persist() {
-    return AppDataService.instance.saveState(
-      widget.allTeams,
-      widget.suggestions,
+    return AppDataService.instance.saveState(widget.allTeams, widget.suggestions);
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      barrierColor: Colors.transparent,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
   }
 
   @override
@@ -62,9 +76,16 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
               children: [
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _filter == MemberFilter.all
-                        ? Colors.blue
-                        : Colors.grey.shade300,
+                    backgroundColor:
+                        _filter == MemberFilter.all ? Colors.blue : Colors.grey.shade300,
+                    foregroundColor:
+                        _filter == MemberFilter.all ? Colors.white : Colors.black87,
+                    side: BorderSide(
+                      color: _filter == MemberFilter.all
+                          ? Colors.blue.shade900
+                          : Colors.grey.shade400,
+                      width: _filter == MemberFilter.all ? 1.5 : 1,
+                    ),
                   ),
                   onPressed: () {
                     setState(() => _filter = MemberFilter.all);
@@ -77,6 +98,15 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                     backgroundColor: _filter == MemberFilter.active
                         ? Colors.blue
                         : Colors.grey.shade300,
+                    foregroundColor: _filter == MemberFilter.active
+                        ? Colors.white
+                        : Colors.black87,
+                    side: BorderSide(
+                      color: _filter == MemberFilter.active
+                          ? Colors.blue.shade900
+                          : Colors.grey.shade400,
+                      width: _filter == MemberFilter.active ? 1.5 : 1,
+                    ),
                   ),
                   onPressed: () {
                     setState(() => _filter = MemberFilter.active);
@@ -96,16 +126,13 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Ranking por puntaje',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                      'Ranking',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 8),
                     for (int i = 0; i < ranking.length && i < 3; i++)
                       Text(
-                        '${i + 1}. ${ranking[i].name} - ${ranking[i].totalScore} puntos',
+                        '${i + 1}. ${ranking[i].displayName} - ${ranking[i].totalScore} puntos',
                         style: const TextStyle(fontSize: 14),
                       ),
                   ],
@@ -124,54 +151,59 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                   onHistory: () {
                     Navigator.pushNamed(context, '/history', arguments: member);
                   },
-                  onSuggestPositive: () {
-                    _showSuggestionDialog(context, member, true);
-                  },
-                  onSuggestNegative: () {
-                    _showSuggestionDialog(context, member, false);
-                  },
+                  onSuggestPositive: () => _showSuggestionDialog(context, member, true),
+                  onSuggestNegative: () => _showSuggestionDialog(context, member, false),
                   onDirectPositive: () async {
-                    setState(() {
-                      widget.team.assignDirect(
-                        requester: widget.currentUser,
-                        target: member,
-                        isPositive: true,
-                        comment: 'Asignado directo',
-                      );
+                    await _runAction(() async {
+                      setState(() {
+                        widget.team.assignDirect(
+                          requester: widget.currentUser,
+                          target: member,
+                          isPositive: true,
+                          comment: 'Asignado directo',
+                        );
+                      });
+                      await _persist();
                     });
-                    await _persist();
                   },
                   onDirectNegative: () async {
-                    setState(() {
-                      widget.team.assignDirect(
-                        requester: widget.currentUser,
-                        target: member,
-                        isPositive: false,
-                        comment: 'Asignado directo',
-                      );
+                    await _runAction(() async {
+                      setState(() {
+                        widget.team.assignDirect(
+                          requester: widget.currentUser,
+                          target: member,
+                          isPositive: false,
+                          comment: 'Asignado directo',
+                        );
+                      });
+                      await _persist();
                     });
-                    await _persist();
                   },
                   onToggleActive: () async {
-                    setState(() {
-                      member.isActive = !member.isActive;
-                      member.history.add(
-                        HistoryItem(
-                          member.isActive
-                              ? '${member.name} fue reactivado'
-                              : '${member.name} fue dado de baja',
-                          DateTime.now(),
-                        ),
-                      );
+                    await _runAction(() async {
+                      setState(() {
+                        member.isActive = !member.isActive;
+                            member.history.add(
+                              HistoryItem(
+                                member.isActive
+                                    ? '${member.displayName} fue reactivado'
+                                    : '${member.displayName} fue dado de baja',
+                                DateTime.now(),
+                              ),
+                            );
+                      });
+                      await _persist();
                     });
-                    await _persist();
                   },
                   onMakeAdmin: () async {
-                    setState(() {
-                      member.role = UserRole.admin;
+                    await _runAction(() async {
+                      setState(() {
+                        member.role = UserRole.admin;
+                      });
+                      await _persist();
                     });
-                    await _persist();
                   },
+                  onDeleteMember: () => _confirmDeleteMember(context, member),
                 );
               },
             ),
@@ -181,19 +213,13 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
       floatingActionButton: widget.currentUser.role == UserRole.admin
           ? FloatingActionButton(
               child: const Icon(Icons.person_add),
-              onPressed: () {
-                _showAddMemberDialog(context, widget.team);
-              },
+              onPressed: () => _showAddMemberDialog(context, widget.team),
             )
           : null,
     );
   }
 
-  void _showSuggestionDialog(
-    BuildContext context,
-    Member target,
-    bool isPositive,
-  ) {
+  void _showSuggestionDialog(BuildContext context, Member target, bool isPositive) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -201,15 +227,10 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
         title: Text('Sugerir ${isPositive ? 'positivo' : 'negativo'}'),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'Escribe un comentario...',
-          ),
+          decoration: const InputDecoration(hintText: 'Escribe un comentario...'),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () async {
               final suggestion = Suggestion(
@@ -221,22 +242,20 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                 teamName: widget.team.name,
               );
 
-              setState(() {
-                widget.suggestions.add(suggestion);
-                widget.team.addSuggestion(suggestion);
+              Navigator.pop(context);
+              await _runAction(() async {
+                setState(() {
+                  widget.suggestions.add(suggestion);
+                  widget.team.addSuggestion(suggestion);
+                });
+                await AppDataService.instance.addSuggestion(suggestion);
               });
-              await AppDataService.instance.addSuggestion(suggestion);
 
               if (!context.mounted) {
                 return;
               }
-              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Sugerencia enviada: ${suggestion.description}',
-                  ),
-                ),
+                SnackBar(content: Text('Sugerencia enviada: ${suggestion.description}')),
               );
             },
             child: const Text('Enviar'),
@@ -255,12 +274,61 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
         hintText: 'Introduce el nombre del miembro',
         confirmText: 'Anadir',
         onConfirm: (value) async {
-          setState(() {
-            team.members.add(Member(name: value));
+          await _runAction(() async {
+            setState(() {
+              team.members.add(Member(name: value));
+            });
+            await _persist();
           });
-          await _persist();
         },
       ),
     );
   }
+
+  Future<void> _confirmDeleteMember(BuildContext context, Member member) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar integrante'),
+        content: Text(
+          'Se eliminara a ${member.displayName} del equipo. Continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) {
+      return;
+    }
+
+    await _runAction(() async {
+      setState(() {
+        widget.team.members.removeWhere((m) => m.id == member.id);
+        widget.suggestions.removeWhere(
+          (s) => s.to.id == member.id || s.from.id == member.id,
+        );
+        widget.team.pendingSuggestions.removeWhere(
+          (s) => s.to.id == member.id || s.from.id == member.id,
+        );
+      });
+      await _persist();
+    });
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Integrante eliminado')),
+    );
+  }
+
 }

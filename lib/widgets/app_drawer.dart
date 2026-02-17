@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/pages/auth_gate.dart';
 import 'package:up_down/services/auth_service.dart';
+import 'package:up_down/widgets/generated_avatar.dart';
 
 class AppDrawer extends StatelessWidget {
   final Map<String, dynamic> args;
@@ -22,10 +23,11 @@ class AppDrawer extends StatelessWidget {
         padding: EdgeInsets.zero,
         children: [
           UserAccountsDrawerHeader(
-            accountName: Text(currentUser.name),
+            accountName: Text(currentUser.displayName),
             accountEmail: Text(currentUser.role.name),
-            currentAccountPicture: const CircleAvatar(
-              child: Icon(Icons.person, size: 40),
+            currentAccountPicture: GeneratedAvatar.circle(
+              seed: currentUser.id,
+              label: currentUser.displayName,
             ),
           ),
           ListTile(
@@ -82,14 +84,32 @@ class AppDrawer extends StatelessWidget {
             title: const Text('Cerrar sesion'),
             onTap: () async {
               Navigator.pop(context);
-              await AuthService.instance.signOut();
-              if (!context.mounted) {
-                return;
-              }
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const AuthGate()),
-                (route) => false,
+              showDialog<void>(
+                context: context,
+                barrierDismissible: false,
+                barrierColor: Colors.transparent,
+                builder: (_) =>
+                    const Center(child: CircularProgressIndicator()),
               );
+              try {
+                await AuthService.instance.signOut();
+                if (!context.mounted) {
+                  return;
+                }
+                Navigator.of(context, rootNavigator: true).pop();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const AuthGate()),
+                  (route) => false,
+                );
+              } catch (_) {
+                if (!context.mounted) {
+                  return;
+                }
+                Navigator.of(context, rootNavigator: true).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('No se pudo cerrar sesion')),
+                );
+              }
             },
           ),
         ],

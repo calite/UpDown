@@ -22,11 +22,26 @@ class PendingSuggestionsTab extends StatefulWidget {
 }
 
 class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
+
   Future<void> _persist() {
-    return AppDataService.instance.saveState(
-      widget.allTeams,
-      widget.suggestions,
+    return AppDataService.instance.saveState(widget.allTeams, widget.suggestions);
+  }
+
+  Future<void> _runAction(Future<void> Function() action) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      barrierColor: Colors.transparent,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
   }
 
   @override
@@ -55,17 +70,14 @@ class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
               itemBuilder: (context, index) {
                 final s = teamSuggestions[index];
                 return Card(
-                  margin: const EdgeInsets.symmetric(
-                    vertical: 6,
-                    horizontal: 12,
-                  ),
+                  margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                   child: ListTile(
                     leading: Icon(
                       s.isPositive ? Icons.thumb_up : Icons.thumb_down,
                       color: s.isPositive ? Colors.green : Colors.red,
                     ),
                     title: Text(
-                      '${s.from.name} -> ${s.to.name}',
+                      '${s.from.displayName} -> ${s.to.displayName}',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Text(s.comment),
@@ -74,35 +86,26 @@ class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
                             spacing: 8,
                             children: [
                               IconButton(
-                                icon: const Icon(
-                                  Icons.check,
-                                  color: Colors.green,
-                                ),
+                                icon: const Icon(Icons.check, color: Colors.green),
                                 tooltip: 'Aceptar',
                                 onPressed: () async {
-                                  setState(() {
-                                    widget.team.approveSuggestion(
-                                      widget.currentUser,
-                                      s,
-                                    );
-                                    widget.suggestions.remove(s);
+                                  await _runAction(() async {
+                                    setState(() {
+                                      widget.team.approveSuggestion(widget.currentUser, s);
+                                      widget.suggestions.remove(s);
+                                    });
+                                    await _persist();
                                   });
-                                  await _persist();
                                   if (!context.mounted) {
                                     return;
                                   }
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Sugerencia aceptada'),
-                                    ),
+                                    const SnackBar(content: Text('Sugerencia aceptada')),
                                   );
                                 },
                               ),
                               IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.red,
-                                ),
+                                icon: const Icon(Icons.close, color: Colors.red),
                                 tooltip: 'Rechazar',
                                 onPressed: () => _showRejectDialog(context, s),
                               ),
@@ -136,21 +139,22 @@ class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
           ),
           ElevatedButton(
             onPressed: () async {
-              setState(() {
-                widget.team.rejectSuggestion(
-                  widget.currentUser,
-                  suggestion,
-                  comment: controller.text.isNotEmpty ? controller.text : null,
-                );
-                widget.suggestions.remove(suggestion);
+              Navigator.pop(context);
+              await _runAction(() async {
+                setState(() {
+                  widget.team.rejectSuggestion(
+                    widget.currentUser,
+                    suggestion,
+                    comment: controller.text.isNotEmpty ? controller.text : null,
+                  );
+                  widget.suggestions.remove(suggestion);
+                });
+                await _persist();
               });
-              await _persist();
 
               if (!context.mounted) {
                 return;
               }
-
-              Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Sugerencia rechazada')),
               );
