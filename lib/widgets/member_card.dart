@@ -33,6 +33,7 @@ class MemberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isSelf = currentUser.id == member.id;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: ListTile(
@@ -44,26 +45,30 @@ class MemberCard extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(Icons.thumb_up, color: Colors.green),
-              onPressed: () {
-                if (currentUser.role == UserRole.user && currentUser != member) {
-                  onSuggestPositive?.call();
-                } else if (currentUser.role == UserRole.admin) {
-                  onDirectPositive?.call();
-                }
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.thumb_down, color: Colors.red),
-              onPressed: () {
-                if (currentUser.role == UserRole.user && currentUser != member) {
-                  onSuggestNegative?.call();
-                } else if (currentUser.role == UserRole.admin) {
-                  onDirectNegative?.call();
-                }
-              },
-            ),
+            if (!isSelf)
+              IconButton(
+                icon: const Icon(Icons.thumb_up, color: Colors.green),
+                onPressed: () {
+                  if (currentUser.role == UserRole.user) {
+                    onSuggestPositive?.call();
+                  } else if (currentUser.role == UserRole.admin ||
+                      currentUser.role == UserRole.gestor) {
+                    onDirectPositive?.call();
+                  }
+                },
+              ),
+            if (!isSelf)
+              IconButton(
+                icon: const Icon(Icons.thumb_down, color: Colors.red),
+                onPressed: () {
+                  if (currentUser.role == UserRole.user) {
+                    onSuggestNegative?.call();
+                  } else if (currentUser.role == UserRole.admin ||
+                      currentUser.role == UserRole.gestor) {
+                    onDirectNegative?.call();
+                  }
+                },
+              ),
             if (currentUser.role == UserRole.admin)
               PopupMenuButton<String>(
                 onSelected: (value) {

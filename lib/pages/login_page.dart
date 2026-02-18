@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:up_down/models/models.dart';
+import 'package:up_down/config/error_titles.dart';
 import 'package:up_down/services/auth_service.dart';
+import 'package:up_down/widgets/error_dialog.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,7 +19,6 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isRegisterMode = false;
   bool _loading = false;
-  UserRole _selectedRole = UserRole.user;
 
   @override
   void dispose() {
@@ -43,7 +43,6 @@ class _LoginPageState extends State<LoginPage> {
           password: _passwordController.text.trim(),
           name: _nameController.text.trim(),
           lastName: _lastNameController.text.trim(),
-          role: _selectedRole,
         );
       } else {
         await AuthService.instance.signIn(
@@ -55,9 +54,11 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(
+      await showErrorDialog(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error de autenticacion: $e')));
+        title: ErrorTitles.auth,
+        error: e,
+      );
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -109,26 +110,6 @@ class _LoginPageState extends State<LoginPage> {
                               return 'Los apellidos son obligatorios';
                             }
                             return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<UserRole>(
-                          initialValue: _selectedRole,
-                          decoration: const InputDecoration(labelText: 'Rol'),
-                          items: const [
-                            DropdownMenuItem(
-                              value: UserRole.user,
-                              child: Text('Usuario'),
-                            ),
-                            DropdownMenuItem(
-                              value: UserRole.admin,
-                              child: Text('Administrador'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _selectedRole = value);
-                            }
                           },
                         ),
                         const SizedBox(height: 12),

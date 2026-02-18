@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:up_down/config/app_config.dart';
+import 'package:up_down/config/error_titles.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/services/auth_service.dart';
 import 'package:up_down/widgets/app_drawer.dart';
+import 'package:up_down/widgets/error_dialog.dart';
+import 'package:up_down/widgets/success_snackbar.dart';
 
 class SettingsPage extends StatefulWidget {
   final Map<String, dynamic> args;
@@ -67,8 +70,15 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Configuracion guardada')),
+      showSuccessSnackBar(context, 'Configuracion guardada');
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      await showErrorDialog(
+        context,
+        title: ErrorTitles.saveSettings,
+        error: e,
       );
     } finally {
       if (mounted) {

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:up_down/config/error_titles.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/pages/auth_gate.dart';
 import 'package:up_down/services/auth_service.dart';
+import 'package:up_down/widgets/error_dialog.dart';
 import 'package:up_down/widgets/generated_avatar.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -78,6 +80,24 @@ class AppDrawer extends StatelessWidget {
               );
             },
           ),
+          if (currentUser.role == UserRole.admin)
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('Solicitudes vinculacion'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/link-requests');
+              },
+            ),
+          if (currentUser.role == UserRole.admin)
+            ListTile(
+              leading: const Icon(Icons.manage_accounts),
+              title: const Text('Roles de usuarios'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/user-roles');
+              },
+            ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
@@ -106,8 +126,10 @@ class AppDrawer extends StatelessWidget {
                   return;
                 }
                 Navigator.of(context, rootNavigator: true).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No se pudo cerrar sesion')),
+                showErrorDialog(
+                  context,
+                  title: ErrorTitles.session,
+                  message: 'No se pudo cerrar sesion',
                 );
               }
             },

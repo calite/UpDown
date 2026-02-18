@@ -3,10 +3,12 @@ import 'package:up_down/firebase_bootstrap.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/pages/auth_gate.dart';
 import 'package:up_down/pages/history_page.dart';
+import 'package:up_down/pages/link_requests_page.dart';
 import 'package:up_down/pages/settings_page.dart';
 import 'package:up_down/pages/stats_page.dart';
 import 'package:up_down/pages/team_detail_page_wrapper.dart';
 import 'package:up_down/pages/teams_page.dart';
+import 'package:up_down/pages/user_roles_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -105,6 +107,8 @@ class UpDownApp extends StatelessWidget {
           }
           return HistoryPage();
         },
+        '/link-requests': (context) => const LinkRequestsPage(),
+        '/user-roles': (context) => const UserRolesPage(),
       },
     );
   }

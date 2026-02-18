@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/pages/home_page.dart';
+import 'package:up_down/services/auth_service.dart';
 
 class TeamDetailPageWrapper extends StatelessWidget {
   const TeamDetailPageWrapper({super.key});
@@ -15,6 +16,8 @@ class TeamDetailPageWrapper extends StatelessWidget {
     final Member currentUser =
         args['currentUser'] as Member? ??
         Member(name: 'Invitado', role: UserRole.user);
+    final CurrentUserProfile? currentProfile =
+        args['currentProfile'] as CurrentUserProfile?;
     final List<Suggestion> suggestions =
         args['suggestions'] as List<Suggestion>? ?? [];
     final List<Team> allTeams = args['allTeams'] as List<Team>? ?? [];
@@ -22,6 +25,7 @@ class TeamDetailPageWrapper extends StatelessWidget {
     return HomePage(
       team: team,
       currentUser: currentUser,
+      currentProfile: currentProfile,
       suggestions: suggestions,
       allTeams: allTeams,
     );

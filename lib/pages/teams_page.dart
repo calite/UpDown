@@ -4,6 +4,7 @@ import 'package:up_down/services/app_data_service.dart';
 import 'package:up_down/services/auth_service.dart';
 import 'package:up_down/widgets/base_scaffold.dart';
 import 'package:up_down/widgets/generated_avatar.dart';
+import 'package:up_down/widgets/success_snackbar.dart';
 
 class TeamsPage extends StatefulWidget {
   const TeamsPage({super.key});
@@ -13,6 +14,7 @@ class TeamsPage extends StatefulWidget {
 }
 
 class _TeamsPageState extends State<TeamsPage> {
+  CurrentUserProfile? _currentProfile;
   Member? _currentUser;
   List<Team> _allTeams = [];
   List<Suggestion> _suggestions = [];
@@ -37,7 +39,8 @@ class _TeamsPageState extends State<TeamsPage> {
     });
 
     try {
-      final currentUser = await AuthService.instance.getCurrentMemberProfile();
+      final currentProfile = await AuthService.instance.getCurrentUserProfile();
+      final currentUser = currentProfile.member;
       final snapshot = await AppDataService.instance.loadOrSeed(
         canSeed: currentUser.role == UserRole.admin,
       );
@@ -47,6 +50,7 @@ class _TeamsPageState extends State<TeamsPage> {
       }
 
       setState(() {
+        _currentProfile = currentProfile;
         _currentUser = currentUser;
         _allTeams = snapshot.teams;
         _suggestions = snapshot.suggestions;
@@ -109,62 +113,113 @@ class _TeamsPageState extends State<TeamsPage> {
       );
     }
 
+    final visibleTeams = _visibleTeams();
+
     return BaseScaffold(
       title: 'Mis equipos',
       args: {
         'currentUser': _currentUser,
+        'currentProfile': _currentProfile,
         'teams': _allTeams,
         'suggestions': _suggestions,
       },
       body: RefreshIndicator(
         onRefresh: _loadData,
-        child: ListView.builder(
-          itemCount: _allTeams.length,
-          itemBuilder: (context, index) {
-            final team = _allTeams[index];
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: ListTile(
-                leading: GeneratedAvatar.rounded(seed: team.id, label: team.name),
-                title: Text(team.name),
-                subtitle: Text('${team.members.length} integrantes'),
-                trailing: _currentUser!.role == UserRole.admin
-                    ? PopupMenuButton<String>(
-                        tooltip: 'Acciones del equipo',
-                        onSelected: (value) {
-                          if (value == 'rename') {
-                            _showRenameTeamDialog(context, team);
-                          } else if (value == 'delete') {
-                            _confirmDeleteTeam(context, team);
-                          }
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem<String>(
-                            value: 'rename',
-                            child: Text('Cambiar nombre'),
-                          ),
-                          PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Eliminar'),
-                          ),
-                        ],
-                      )
-                    : null,
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/team-detail',
-                    arguments: {
-                      'team': team,
-                      'currentUser': _currentUser,
-                      'suggestions': _suggestions,
-                      'allTeams': _allTeams,
-                    },
-                  );
-                },
+        child: ListView(
+          children: [
+            if (_currentUser!.role == UserRole.admin)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await Navigator.pushNamed(context, '/link-requests');
+                    if (mounted) {
+                      await _loadData();
+                    }
+                  },
+                  icon: const Icon(Icons.link),
+                  label: const Text('Gestionar solicitudes de vinculacion'),
+                ),
               ),
-            );
-          },
+            if (_currentUser!.role != UserRole.admin && !(_currentProfile?.isLinked ?? false))
+              Card(
+                margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tu cuenta aun no esta vinculada a un integrante.',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Solicita vinculacion a un equipo para empezar a usar la app.',
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: _allTeams.isEmpty
+                            ? null
+                            : () => _showCreateLinkRequestDialog(context),
+                        icon: const Icon(Icons.send),
+                        label: const Text('Solicitar vinculacion'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (visibleTeams.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: Text('No hay equipos disponibles.')),
+              ),
+            ...visibleTeams.map((team) {
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: ListTile(
+                  leading: GeneratedAvatar.rounded(seed: team.id, label: team.name),
+                  title: Text(team.name),
+                  subtitle: Text('${team.members.length} integrantes'),
+                  trailing: _currentUser!.role == UserRole.admin
+                      ? PopupMenuButton<String>(
+                          tooltip: 'Acciones del equipo',
+                          onSelected: (value) {
+                            if (value == 'rename') {
+                              _showRenameTeamDialog(context, team);
+                            } else if (value == 'delete') {
+                              _confirmDeleteTeam(context, team);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem<String>(
+                              value: 'rename',
+                              child: Text('Cambiar nombre'),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'delete',
+                              child: Text('Eliminar'),
+                            ),
+                          ],
+                        )
+                      : null,
+                  onTap: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/team-detail',
+                      arguments: {
+                        'team': team,
+                        'currentUser': _currentUser,
+                        'currentProfile': _currentProfile,
+                        'suggestions': _suggestions,
+                        'allTeams': _allTeams,
+                      },
+                    );
+                  },
+                ),
+              );
+            }),
+          ],
         ),
       ),
       floatingActionButton: _currentUser!.role == UserRole.admin
@@ -205,8 +260,22 @@ class _TeamsPageState extends State<TeamsPage> {
             child: const Text('Crear'),
           ),
         ],
-      ),
+            ),
     );
+  }
+
+  List<Team> _visibleTeams() {
+    if (_currentUser == null) {
+      return const [];
+    }
+    if (_currentUser!.role == UserRole.admin) {
+      return _allTeams;
+    }
+    final linkedTeamId = _currentProfile?.linkedTeamId;
+    if (linkedTeamId == null || linkedTeamId.isEmpty) {
+      return const [];
+    }
+    return _allTeams.where((team) => team.id == linkedTeamId).toList();
   }
 
   void _showRenameTeamDialog(BuildContext context, Team team) {
@@ -253,9 +322,7 @@ class _TeamsPageState extends State<TeamsPage> {
               });
 
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Nombre actualizado')),
-                );
+                showSuccessSnackBar(context, 'Nombre actualizado');
               }
             },
             child: const Text('Guardar'),
@@ -301,8 +368,88 @@ class _TeamsPageState extends State<TeamsPage> {
     if (!context.mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Equipo eliminado')),
+    showSuccessSnackBar(context, 'Equipo eliminado');
+  }
+
+  void _showCreateLinkRequestDialog(BuildContext context) {
+    if (_currentProfile == null || _currentUser == null) {
+      return;
+    }
+
+    Team selectedTeam = _allTeams.first;
+    final noteController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setLocalState) => AlertDialog(
+          title: const Text('Solicitar vinculacion'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedTeam.id,
+                decoration: const InputDecoration(labelText: 'Equipo'),
+                items: _allTeams
+                    .map(
+                      (team) => DropdownMenuItem(
+                        value: team.id,
+                        child: Text(team.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  final team = _allTeams.firstWhere((t) => t.id == value);
+                  setLocalState(() => selectedTeam = team);
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: noteController,
+                decoration: const InputDecoration(
+                  labelText: 'Comentario (opcional)',
+                ),
+                minLines: 2,
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _runAction(() async {
+                  await AppDataService.instance.createLinkRequest(
+                    userId: _currentProfile!.uid,
+                    email: _currentProfile!.email,
+                    name: _currentUser!.name,
+                    lastName: _currentUser!.lastName,
+                    team: selectedTeam,
+                    note: noteController.text,
+                  );
+                });
+
+                if (!mounted) {
+                  return;
+                }
+                showSuccessSnackBar(
+                  this.context,
+                  'Solicitud enviada al administrador',
+                );
+                await _loadData();
+              },
+              child: const Text('Enviar'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

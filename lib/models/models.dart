@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:up_down/config/app_config.dart';
 
-enum UserRole { admin, user }
+enum UserRole { admin, gestor, user }
 
 class _Id {
   static final Random _random = Random();
@@ -19,6 +19,9 @@ class Member {
   final String id;
   String name;
   String lastName;
+  String email;
+  String emailLower;
+  String? authUid;
   int positives;
   int negatives;
   bool isActive;
@@ -29,6 +32,9 @@ class Member {
     String? id,
     required this.name,
     this.lastName = '',
+    this.email = '',
+    this.emailLower = '',
+    this.authUid,
     this.positives = 0,
     this.negatives = 0,
     this.isActive = true,
@@ -55,6 +61,9 @@ class Member {
       'id': id,
       'name': name,
       'lastName': lastName,
+      'email': email,
+      'emailLower': emailLower,
+      'authUid': authUid,
       'positives': positives,
       'negatives': negatives,
       'isActive': isActive,
@@ -73,12 +82,17 @@ class Member {
       id: map['id'] as String?,
       name: resolvedName,
       lastName: resolvedLastName,
+      email: map['email'] as String? ?? '',
+      emailLower: map['emailLower'] as String? ?? '',
+      authUid: map['authUid'] as String?,
       positives: (map['positives'] as num?)?.toInt() ?? 0,
       negatives: (map['negatives'] as num?)?.toInt() ?? 0,
       isActive: map['isActive'] as bool? ?? true,
       role: (map['role'] as String?) == UserRole.admin.name
           ? UserRole.admin
-          : UserRole.user,
+          : (map['role'] as String?) == UserRole.gestor.name
+              ? UserRole.gestor
+              : UserRole.user,
       history: historyData
           .whereType<Map>()
           .map((item) => HistoryItem.fromMap(Map<String, dynamic>.from(item)))
@@ -129,6 +143,10 @@ class Team {
   List<Member> get admins =>
       members.where((m) => m.role == UserRole.admin).toList();
 
+  bool _canManageSuggestions(Member requester) {
+    return requester.role == UserRole.admin || requester.role == UserRole.gestor;
+  }
+
   void addAdmin(Member requester, Member newAdmin) {
     if (requester.role != UserRole.admin) {
       throw Exception('Solo un administrador puede asignar nuevos admins.');
@@ -141,8 +159,8 @@ class Team {
   }
 
   void approveSuggestion(Member requester, Suggestion suggestion) {
-    if (requester.role != UserRole.admin) {
-      throw Exception('Solo un administrador puede aprobar sugerencias.');
+    if (!_canManageSuggestions(requester)) {
+      throw Exception('Solo admin o gestor puede aprobar sugerencias.');
     }
     if (suggestion.approved || suggestion.rejected) {
       throw Exception('La sugerencia ya fue gestionada.');
@@ -169,25 +187,21 @@ class Team {
     pendingSuggestions.remove(suggestion);
   }
 
-  void rejectSuggestion(
-    Member requester,
-    Suggestion suggestion, {
-    String? comment,
-  }) {
-    if (requester.role != UserRole.admin) {
-      throw Exception('Solo un administrador puede rechazar sugerencias.');
+  void rejectSuggestion(Member requester, Suggestion suggestion) {
+    if (!_canManageSuggestions(requester)) {
+      throw Exception('Solo admin o gestor puede rechazar sugerencias.');
     }
     if (suggestion.approved || suggestion.rejected) {
       throw Exception('La sugerencia ya fue gestionada.');
     }
 
     suggestion.rejected = true;
-    suggestion.rejectionComment = comment;
+    suggestion.rejectionComment = null;
 
     final description =
         'SUGERENCIA RECHAZADA: ${suggestion.from.displayName} sugirio un '
         '${suggestion.isPositive ? 'positivo' : 'negativo'} para '
-        '${suggestion.to.displayName}. Motivo: ${comment ?? 'no especificado'}';
+        '${suggestion.to.displayName}: "${suggestion.comment}"';
 
     suggestion.to.history.add(HistoryItem(description, DateTime.now()));
 
@@ -207,9 +221,10 @@ class Team {
     required bool isPositive,
     required String comment,
   }) {
-    if (requester.role != UserRole.admin) {
+    if (requester.role != UserRole.admin &&
+        requester.role != UserRole.gestor) {
       throw Exception(
-        'Solo un administrador puede asignar positivos/negativos.',
+        'Solo admin o gestor puede asignar positivos/negativos.',
       );
     }
 
@@ -389,6 +404,139 @@ class Suggestion {
 
 extension _IterableFirstOrNull<E> on Iterable<E> {
   E? get firstOrNull => isEmpty ? null : first;
+}
+
+class AppUserRecord {
+  final String uid;
+  final String email;
+  final String name;
+  final String lastName;
+  final UserRole role;
+  final String? linkedTeamId;
+  final String? linkedMemberId;
+
+  const AppUserRecord({
+    required this.uid,
+    required this.email,
+    required this.name,
+    required this.lastName,
+    required this.role,
+    required this.linkedTeamId,
+    required this.linkedMemberId,
+  });
+
+  String get displayName {
+    final full = '$name $lastName'.trim();
+    return full.isEmpty ? email : full;
+  }
+
+  factory AppUserRecord.fromMap(String uid, Map<String, dynamic> map) {
+    final roleRaw = map['role'] as String?;
+    final role = roleRaw == UserRole.admin.name
+        ? UserRole.admin
+        : roleRaw == UserRole.gestor.name
+            ? UserRole.gestor
+            : UserRole.user;
+    return AppUserRecord(
+      uid: uid,
+      email: map['email'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      lastName: map['lastName'] as String? ?? '',
+      role: role,
+      linkedTeamId: map['linkedTeamId'] as String?,
+      linkedMemberId: map['linkedMemberId'] as String?,
+    );
+  }
+}
+
+enum LinkRequestStatus { pending, approved, rejected }
+
+class LinkRequest {
+  final String id;
+  final String userId;
+  final String email;
+  final String name;
+  final String lastName;
+  final String teamId;
+  final String teamName;
+  final String note;
+  final DateTime createdAt;
+  final LinkRequestStatus status;
+  final String? memberId;
+  final String? memberName;
+  final String? reviewedByUid;
+  final String? reviewComment;
+  final DateTime? reviewedAt;
+
+  const LinkRequest({
+    required this.id,
+    required this.userId,
+    required this.email,
+    required this.name,
+    required this.lastName,
+    required this.teamId,
+    required this.teamName,
+    required this.note,
+    required this.createdAt,
+    required this.status,
+    this.memberId,
+    this.memberName,
+    this.reviewedByUid,
+    this.reviewComment,
+    this.reviewedAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'email': email,
+      'name': name,
+      'lastName': lastName,
+      'teamId': teamId,
+      'teamName': teamName,
+      'note': note,
+      'createdAt': createdAt.toIso8601String(),
+      'status': status.name,
+      'memberId': memberId,
+      'memberName': memberName,
+      'reviewedByUid': reviewedByUid,
+      'reviewComment': reviewComment,
+      'reviewedAt': reviewedAt?.toIso8601String(),
+    };
+  }
+
+  factory LinkRequest.fromMap(String id, Map<String, dynamic> map) {
+    LinkRequestStatus status;
+    switch (map['status'] as String?) {
+      case 'approved':
+        status = LinkRequestStatus.approved;
+        break;
+      case 'rejected':
+        status = LinkRequestStatus.rejected;
+        break;
+      default:
+        status = LinkRequestStatus.pending;
+    }
+
+    return LinkRequest(
+      id: id,
+      userId: map['userId'] as String? ?? '',
+      email: map['email'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      lastName: map['lastName'] as String? ?? '',
+      teamId: map['teamId'] as String? ?? '',
+      teamName: map['teamName'] as String? ?? '',
+      note: map['note'] as String? ?? '',
+      createdAt:
+          DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
+      status: status,
+      memberId: map['memberId'] as String?,
+      memberName: map['memberName'] as String?,
+      reviewedByUid: map['reviewedByUid'] as String?,
+      reviewComment: map['reviewComment'] as String?,
+      reviewedAt: DateTime.tryParse(map['reviewedAt'] as String? ?? ''),
+    );
+  }
 }
 
 String _extractFirstName(String fullName) {

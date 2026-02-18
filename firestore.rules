@@ -5,35 +5,103 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? userDoc().role
+        : null;
     }
 
     function isAdmin() {
       return isSignedIn() && userRole() == 'admin';
     }
 
+    function isGestor() {
+      return isSignedIn() && userRole() == 'gestor';
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function canManageSuggestionForTeam(teamId) {
+      return isAdmin() || (isGestor() && userDoc().linkedTeamId == teamId);
+    }
+
+    function isFirstSuggestionDecision() {
+      return resource.data.approved == false &&
+        resource.data.rejected == false &&
+        (
+          (request.resource.data.approved == true &&
+           request.resource.data.rejected == false) ||
+          (request.resource.data.approved == false &&
+           request.resource.data.rejected == true)
+        );
+    }
+
+    function canDeleteOwnPendingSuggestion() {
+      return isSignedIn() &&
+        resource.data.fromMemberId == userDoc().linkedMemberId &&
+        resource.data.teamId == userDoc().linkedTeamId &&
+        resource.data.approved == false &&
+        resource.data.rejected == false;
+    }
+
+    function adminNotDemotingSelf(userId) {
+      return request.auth.uid != userId || request.resource.data.role == 'admin';
+    }
+
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSelf(userId) || isAdmin();
+      allow create: if isSelf(userId);
+      allow update: if (isAdmin() && adminNotDemotingSelf(userId)) || (
+        isSelf(userId) &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.emailLower == resource.data.emailLower &&
+        request.resource.data.linkedTeamId == resource.data.linkedTeamId &&
+        request.resource.data.linkedMemberId == resource.data.linkedMemberId &&
+        request.resource.data.linkStatus == resource.data.linkStatus
+      );
     }
 
     match /teams/{teamId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isGestor() && userDoc().linkedTeamId == teamId);
 
       match /members/{memberId} {
         allow read: if isSignedIn();
-        allow write: if isAdmin();
+        allow create, delete: if isAdmin();
+        allow update: if isAdmin() || (isGestor() && userDoc().linkedTeamId == teamId);
       }
     }
 
     match /suggestions/{suggestionId} {
       allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        userRole() == 'user' &&
+        request.resource.data.teamId == userDoc().linkedTeamId &&
+        request.resource.data.fromMemberId == userDoc().linkedMemberId &&
+        request.resource.data.approved == false &&
+        request.resource.data.rejected == false &&
+        request.resource.data.comment is string &&
+        request.resource.data.comment.size() > 0;
+      allow update: if canManageSuggestionForTeam(resource.data.teamId) &&
+                    isFirstSuggestionDecision();
+      allow delete: if canManageSuggestionForTeam(resource.data.teamId) || canDeleteOwnPendingSuggestion();
+    }
 
-      // Usuario autenticado puede crear sugerencias; admins pueden
-      // gestionar (actualizar/eliminar) durante aprobación/rechazo.
-      allow create: if isSignedIn();
+    match /linkRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow create: if isSignedIn() &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.status == 'pending';
       allow update, delete: if isAdmin();
     }
   }
 }
+

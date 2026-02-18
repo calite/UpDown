@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/services/app_data_service.dart';
+import 'package:up_down/services/auth_service.dart';
+import 'package:up_down/widgets/error_dialog.dart';
+import 'package:up_down/config/error_titles.dart';
 import 'package:up_down/widgets/base_scaffold.dart';
+import 'package:up_down/widgets/success_snackbar.dart';
 
 class PendingSuggestionsTab extends StatefulWidget {
   final Team team;
   final Member currentUser;
+  final CurrentUserProfile? currentProfile;
   final List<Team> allTeams;
   final List<Suggestion> suggestions;
 
@@ -13,6 +18,7 @@ class PendingSuggestionsTab extends StatefulWidget {
     super.key,
     required this.team,
     required this.currentUser,
+    required this.currentProfile,
     required this.allTeams,
     required this.suggestions,
   });
@@ -22,11 +28,6 @@ class PendingSuggestionsTab extends StatefulWidget {
 }
 
 class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
-
-  Future<void> _persist() {
-    return AppDataService.instance.saveState(widget.allTeams, widget.suggestions);
-  }
-
   Future<void> _runAction(Future<void> Function() action) async {
     showDialog<void>(
       context: context,
@@ -46,7 +47,10 @@ class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = widget.currentUser.role == UserRole.admin;
+    final canManageSuggestions =
+        widget.currentUser.role == UserRole.admin ||
+        (widget.currentUser.role == UserRole.gestor &&
+            widget.currentProfile?.linkedTeamId == widget.team.id);
     final teamSuggestions = widget.suggestions
         .where((s) => s.teamId == widget.team.id)
         .toList();
@@ -78,10 +82,14 @@ class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
                     ),
                     title: Text(
                       '${s.from.displayName} -> ${s.to.displayName}',
+                      textAlign: TextAlign.center,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(s.comment),
-                    trailing: isAdmin
+                    subtitle: Text(
+                      s.comment,
+                      textAlign: TextAlign.center,
+                    ),
+                    trailing: canManageSuggestions
                         ? Wrap(
                             spacing: 8,
                             children: [
@@ -89,29 +97,128 @@ class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
                                 icon: const Icon(Icons.check, color: Colors.green),
                                 tooltip: 'Aceptar',
                                 onPressed: () async {
-                                  await _runAction(() async {
-                                    setState(() {
-                                      widget.team.approveSuggestion(widget.currentUser, s);
-                                      widget.suggestions.remove(s);
+                                  try {
+                                    await _runAction(() async {
+                                      await AppDataService.instance
+                                          .approveSuggestionWithEffects(
+                                        suggestion: s,
+                                        reviewer: widget.currentUser,
+                                      );
+                                      setState(() {
+                                        widget.team.approveSuggestion(
+                                          widget.currentUser,
+                                          s,
+                                        );
+                                        widget.suggestions.remove(s);
+                                      });
                                     });
-                                    await _persist();
-                                  });
-                                  if (!context.mounted) {
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      await showErrorDialog(
+                                        context,
+                                        title: ErrorTitles.forbiddenAction,
+                                        error: e,
+                                      );
+                                    }
                                     return;
                                   }
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Sugerencia aceptada')),
+                                  if (!context.mounted) return;
+                                  showSuccessSnackBar(
+                                    context,
+                                    'Sugerencia aceptada',
                                   );
                                 },
                               ),
                               IconButton(
                                 icon: const Icon(Icons.close, color: Colors.red),
                                 tooltip: 'Rechazar',
-                                onPressed: () => _showRejectDialog(context, s),
+                                onPressed: () async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: const Text('Rechazar sugerencia'),
+                                      content: const Text(
+                                        'Se rechazara esta sugerencia. Continuar?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: const Text('Cancelar'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text('Rechazar'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirmed != true) {
+                                    return;
+                                  }
+                                  try {
+                                    await _runAction(() async {
+                                      await AppDataService.instance
+                                          .rejectSuggestionWithEffects(
+                                        suggestion: s,
+                                        reviewer: widget.currentUser,
+                                      );
+                                      setState(() {
+                                        widget.team.rejectSuggestion(
+                                          widget.currentUser,
+                                          s,
+                                        );
+                                        widget.suggestions.remove(s);
+                                      });
+                                    });
+                                  } catch (e) {
+                                    if (context.mounted) {
+                                      await showErrorDialog(
+                                        context,
+                                        title: ErrorTitles.forbiddenAction,
+                                        error: e,
+                                      );
+                                    }
+                                    return;
+                                  }
+                                  if (!context.mounted) return;
+                                  showSuccessSnackBar(
+                                    context,
+                                    'Sugerencia rechazada',
+                                  );
+                                },
                               ),
                             ],
                           )
-                        : null,
+                        : (s.from.id == widget.currentUser.id
+                            ? IconButton(
+                                icon: const Icon(Icons.cancel_outlined),
+                                tooltip: 'Cancelar sugerencia',
+                                onPressed: () async {
+                                  await _runAction(() async {
+                                    setState(() {
+                                      widget.suggestions.removeWhere(
+                                        (item) => item.id == s.id,
+                                      );
+                                      widget.team.pendingSuggestions.removeWhere(
+                                        (item) => item.id == s.id,
+                                      );
+                                    });
+                                    await AppDataService.instance.deleteSuggestion(
+                                      s.id,
+                                    );
+                                  });
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  showSuccessSnackBar(
+                                    context,
+                                    'Sugerencia cancelada',
+                                  );
+                                },
+                              )
+                            : null),
                   ),
                 );
               },
@@ -119,50 +226,4 @@ class _PendingSuggestionsTabState extends State<PendingSuggestionsTab> {
     );
   }
 
-  void _showRejectDialog(BuildContext context, Suggestion suggestion) {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Rechazar sugerencia'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'Motivo del rechazo (opcional)',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _runAction(() async {
-                setState(() {
-                  widget.team.rejectSuggestion(
-                    widget.currentUser,
-                    suggestion,
-                    comment: controller.text.isNotEmpty ? controller.text : null,
-                  );
-                  widget.suggestions.remove(suggestion);
-                });
-                await _persist();
-              });
-
-              if (!context.mounted) {
-                return;
-              }
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sugerencia rechazada')),
-              );
-            },
-            child: const Text('Rechazar'),
-          ),
-        ],
-      ),
-    );
-  }
 }

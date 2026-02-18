@@ -2,6 +2,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:up_down/models/models.dart';
 
+class CurrentUserProfile {
+  final String uid;
+  final String email;
+  final Member member;
+  final String? linkedTeamId;
+  final String? linkedMemberId;
+
+  const CurrentUserProfile({
+    required this.uid,
+    required this.email,
+    required this.member,
+    required this.linkedTeamId,
+    required this.linkedMemberId,
+  });
+
+  bool get isLinked =>
+      linkedTeamId != null &&
+      linkedTeamId!.isNotEmpty &&
+      linkedMemberId != null &&
+      linkedMemberId!.isNotEmpty;
+}
+
 class AuthService {
   AuthService._();
 
@@ -23,7 +45,6 @@ class AuthService {
     required String password,
     required String name,
     required String lastName,
-    required UserRole role,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -34,13 +55,17 @@ class AuthService {
     await _firestore.collection('users').doc(uid).set({
       'name': name,
       'lastName': lastName,
-      'role': role.name,
+      'role': UserRole.user.name,
       'email': email,
+      'emailLower': email.trim().toLowerCase(),
+      'linkedTeamId': null,
+      'linkedMemberId': null,
+      'linkStatus': 'unlinked',
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  Future<Member> getCurrentMemberProfile() async {
+  Future<CurrentUserProfile> getCurrentUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('No hay un usuario autenticado.');
@@ -51,13 +76,30 @@ class AuthService {
     final name = (data['name'] as String?)?.trim();
     final lastName = (data['lastName'] as String?)?.trim() ?? '';
     final roleName = data['role'] as String?;
+    final linkedTeamId = data['linkedTeamId'] as String?;
+    final linkedMemberId = data['linkedMemberId'] as String?;
 
-    return Member(
-      id: user.uid,
-      name: name == null || name.isEmpty ? user.email ?? 'Usuario' : name,
-      lastName: lastName,
-      role: roleName == UserRole.admin.name ? UserRole.admin : UserRole.user,
+    return CurrentUserProfile(
+      uid: user.uid,
+      email: user.email ?? '',
+      linkedTeamId: linkedTeamId,
+      linkedMemberId: linkedMemberId,
+      member: Member(
+        id: user.uid,
+        name: name == null || name.isEmpty ? user.email ?? 'Usuario' : name,
+        lastName: lastName,
+        role: roleName == UserRole.admin.name
+            ? UserRole.admin
+            : roleName == UserRole.gestor.name
+                ? UserRole.gestor
+                : UserRole.user,
+      ),
     );
+  }
+
+  Future<Member> getCurrentMemberProfile() async {
+    final profile = await getCurrentUserProfile();
+    return profile.member;
   }
 
   Future<void> updateCurrentUserProfile({

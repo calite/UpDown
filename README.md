@@ -132,3 +132,32 @@ Proyecto desarrollado como práctica y evolución en Flutter por Daniel Campos.
    - Publica reglas con Firebase CLI:
      `firebase deploy --only firestore:rules`
 
+## Levantar proyecto (PowerShell)
+
+1. Instalar dependencias:
+   ```powershell
+   flutter pub get
+   ```
+
+2. Crear archivo local de variables (no se sube a git):
+   ```powershell
+   Copy-Item .env.web.example .env.web
+   ```
+
+3. Completar `.env.web` con credenciales Firebase Web.
+
+4. Ejecutar en local:
+   ```powershell
+   .\run_web.ps1
+   ```
+
+5. Ejecutar en release local (opcional):
+   ```powershell
+   .\run_web.ps1 -Release
+   ```
+
+Notas:
+- Si usas Git Bash, ejecuta el script así:
+  `powershell -ExecutionPolicy Bypass -File ./run_web.ps1`
+- El archivo `.env.web` está ignorado por git para no subir claves.
+

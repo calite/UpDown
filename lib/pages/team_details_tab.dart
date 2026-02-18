@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:up_down/config/error_titles.dart';
 import 'package:up_down/models/models.dart';
 import 'package:up_down/services/app_data_service.dart';
+import 'package:up_down/services/auth_service.dart';
 import 'package:up_down/widgets/base_scaffold.dart';
 import 'package:up_down/widgets/custom_dialog.dart';
+import 'package:up_down/widgets/error_dialog.dart';
 import 'package:up_down/widgets/member_card.dart';
+import 'package:up_down/widgets/success_snackbar.dart';
 
 enum MemberFilter { all, active }
 
 class TeamDetailsTab extends StatefulWidget {
   final Team team;
   final Member currentUser;
+  final CurrentUserProfile? currentProfile;
   final List<Team> allTeams;
   final List<Suggestion> suggestions;
 
@@ -17,6 +22,7 @@ class TeamDetailsTab extends StatefulWidget {
     super.key,
     required this.team,
     required this.currentUser,
+    required this.currentProfile,
     required this.allTeams,
     required this.suggestions,
   });
@@ -54,12 +60,26 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
     final filteredMembers = _filter == MemberFilter.all
         ? widget.team.members
         : widget.team.members.where((m) => m.isActive).toList();
+    final linkedMemberId = widget.currentProfile?.linkedMemberId;
+    final linkedMember = linkedMemberId == null
+        ? null
+        : widget.team.members.where((m) => m.id == linkedMemberId).firstOrNull;
+    final actorMember = widget.currentUser.role == UserRole.admin
+        ? widget.currentUser
+        : (linkedMember ?? widget.currentUser);
+    final canSuggestOnTeam = widget.currentUser.role == UserRole.user &&
+        (widget.currentProfile?.isLinked ?? false) &&
+        widget.currentProfile?.linkedTeamId == widget.team.id &&
+        linkedMember != null;
+    final canAssignDirect = widget.currentUser.role == UserRole.admin ||
+        widget.currentUser.role == UserRole.gestor;
 
     final ranking = List.of(widget.team.members)
       ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
 
     final args = {
-      'currentUser': widget.currentUser,
+      'currentUser': actorMember,
+      'currentProfile': widget.currentProfile,
       'teams': widget.allTeams,
       'suggestions': widget.suggestions,
     };
@@ -146,38 +166,48 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                 final member = filteredMembers[index];
                 return MemberCard(
                   member: member,
-                  currentUser: widget.currentUser,
+                  currentUser: actorMember,
                   team: widget.team,
                   onHistory: () {
                     Navigator.pushNamed(context, '/history', arguments: member);
                   },
-                  onSuggestPositive: () => _showSuggestionDialog(context, member, true),
-                  onSuggestNegative: () => _showSuggestionDialog(context, member, false),
+                  onSuggestPositive: canSuggestOnTeam
+                      ? () => _showSuggestionDialog(
+                            context,
+                            member,
+                            true,
+                            actorMember,
+                          )
+                      : null,
+                  onSuggestNegative: canSuggestOnTeam
+                      ? () => _showSuggestionDialog(
+                            context,
+                            member,
+                            false,
+                            actorMember,
+                          )
+                      : null,
                   onDirectPositive: () async {
-                    await _runAction(() async {
-                      setState(() {
-                        widget.team.assignDirect(
-                          requester: widget.currentUser,
-                          target: member,
-                          isPositive: true,
-                          comment: 'Asignado directo',
-                        );
-                      });
-                      await _persist();
-                    });
+                    if (!canAssignDirect) {
+                      return;
+                    }
+                    _showDirectAssignDialog(
+                      context,
+                      target: member,
+                      isPositive: true,
+                      actorMember: actorMember,
+                    );
                   },
                   onDirectNegative: () async {
-                    await _runAction(() async {
-                      setState(() {
-                        widget.team.assignDirect(
-                          requester: widget.currentUser,
-                          target: member,
-                          isPositive: false,
-                          comment: 'Asignado directo',
-                        );
-                      });
-                      await _persist();
-                    });
+                    if (!canAssignDirect) {
+                      return;
+                    }
+                    _showDirectAssignDialog(
+                      context,
+                      target: member,
+                      isPositive: false,
+                      actorMember: actorMember,
+                    );
                   },
                   onToggleActive: () async {
                     await _runAction(() async {
@@ -219,25 +249,118 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
     );
   }
 
-  void _showSuggestionDialog(BuildContext context, Member target, bool isPositive) {
+  void _showDirectAssignDialog(
+    BuildContext context, {
+    required Member target,
+    required bool isPositive,
+    required Member actorMember,
+  }) {
+    final formKey = GlobalKey<FormState>();
     final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(
+          'Asignar ${isPositive ? 'positivo' : 'negativo'}',
+        ),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Comentario obligatorio',
+            ),
+            validator: (value) {
+              if ((value ?? '').trim().isEmpty) {
+                return 'El comentario es obligatorio';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) {
+                return;
+              }
+              Navigator.pop(context);
+              await _runAction(() async {
+                setState(() {
+                  widget.team.assignDirect(
+                    requester: actorMember,
+                    target: target,
+                    isPositive: isPositive,
+                    comment: controller.text.trim(),
+                  );
+                });
+                await _persist();
+              });
+            },
+            child: const Text('Asignar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuggestionDialog(
+    BuildContext context,
+    Member target,
+    bool isPositive,
+    Member actorMember,
+  ) {
+    final canSuggestOnTeam = widget.currentUser.role == UserRole.user &&
+        ((widget.currentProfile?.isLinked ?? false) &&
+            widget.currentProfile?.linkedTeamId == widget.team.id &&
+            widget.currentProfile?.linkedMemberId == actorMember.id);
+    if (!canSuggestOnTeam) {
+      showErrorDialog(
+        context,
+        title: ErrorTitles.forbiddenAction,
+        message: 'No tienes permiso para sugerir en este equipo.',
+      );
+      return;
+    }
+
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Sugerir ${isPositive ? 'positivo' : 'negativo'}'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(hintText: 'Escribe un comentario...'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Escribe un comentario...',
+            ),
+            validator: (value) {
+              if ((value ?? '').trim().isEmpty) {
+                return 'El comentario es obligatorio';
+              }
+              return null;
+            },
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () async {
+              if (!formKey.currentState!.validate()) {
+                return;
+              }
               final suggestion = Suggestion(
-                from: widget.currentUser,
+                from: actorMember,
                 to: target,
                 isPositive: isPositive,
-                comment: controller.text,
+                comment: controller.text.trim(),
                 teamId: widget.team.id,
                 teamName: widget.team.name,
               );
@@ -254,8 +377,9 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
               if (!context.mounted) {
                 return;
               }
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Sugerencia enviada: ${suggestion.description}')),
+              showSuccessSnackBar(
+                context,
+                'Sugerencia enviada: ${suggestion.description}',
               );
             },
             child: const Text('Enviar'),
@@ -326,9 +450,11 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
     if (!context.mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Integrante eliminado')),
-    );
+    showSuccessSnackBar(context, 'Integrante eliminado');
   }
 
+}
+
+extension _IterableFirstOrNull<E> on Iterable<E> {
+  E? get firstOrNull => isEmpty ? null : first;
 }
