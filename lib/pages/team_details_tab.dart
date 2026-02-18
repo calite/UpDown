@@ -9,7 +9,7 @@ import 'package:up_down/widgets/error_dialog.dart';
 import 'package:up_down/widgets/member_card.dart';
 import 'package:up_down/widgets/success_snackbar.dart';
 
-enum MemberFilter { all, active }
+enum MemberFilter { all, active, inactive }
 
 class TeamDetailsTab extends StatefulWidget {
   final Team team;
@@ -32,7 +32,7 @@ class TeamDetailsTab extends StatefulWidget {
 }
 
 class _TeamDetailsTabState extends State<TeamDetailsTab> {
-  MemberFilter _filter = MemberFilter.all;
+  MemberFilter _filter = MemberFilter.active;
 
   Future<void> _persist() {
     return AppDataService.instance.saveState(widget.allTeams, widget.suggestions);
@@ -57,9 +57,11 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredMembers = _filter == MemberFilter.all
-        ? widget.team.members
-        : widget.team.members.where((m) => m.isActive).toList();
+    final filteredMembers = switch (_filter) {
+      MemberFilter.all => widget.team.members,
+      MemberFilter.active => widget.team.members.where((m) => m.isActive).toList(),
+      MemberFilter.inactive => widget.team.members.where((m) => !m.isActive).toList(),
+    };
     final linkedMemberId = widget.currentProfile?.linkedMemberId;
     final linkedMember = linkedMemberId == null
         ? null
@@ -70,9 +72,11 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
     final canSuggestOnTeam = widget.currentUser.role == UserRole.user &&
         (widget.currentProfile?.isLinked ?? false) &&
         widget.currentProfile?.linkedTeamId == widget.team.id &&
-        linkedMember != null;
-    final canAssignDirect = widget.currentUser.role == UserRole.admin ||
-        widget.currentUser.role == UserRole.gestor;
+        linkedMember != null &&
+        linkedMember.isActive;
+    final canAssignDirect = (widget.currentUser.role == UserRole.admin ||
+            widget.currentUser.role == UserRole.gestor) &&
+        actorMember.isActive;
 
     final ranking = List.of(widget.team.members)
       ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
@@ -89,11 +93,70 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
       args: args,
       body: Column(
         children: [
+          if (widget.currentUser.role == UserRole.admin)
+            Card(
+              margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+              child: SwitchListTile(
+                title: const Text('Autoaprobar solicitudes de vinculacion'),
+                subtitle: const Text(
+                  'Si esta activo, usuarios nuevos se vinculan al instante cuando sea posible.',
+                ),
+                value: widget.team.settings.autoApproveJoinRequests,
+                onChanged: (value) async {
+                  await _runAction(() async {
+                    setState(() {
+                      widget.team.settings.autoApproveJoinRequests = value;
+                    });
+                    await _persist();
+                  });
+                },
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        _filter == MemberFilter.active ? Colors.blue : Colors.grey.shade300,
+                    foregroundColor:
+                        _filter == MemberFilter.active ? Colors.white : Colors.black87,
+                    side: BorderSide(
+                      color: _filter == MemberFilter.active
+                          ? Colors.blue.shade900
+                          : Colors.grey.shade400,
+                      width: _filter == MemberFilter.active ? 1.5 : 1,
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() => _filter = MemberFilter.active);
+                  },
+                  child: const Text('Activos'),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _filter == MemberFilter.inactive
+                        ? Colors.blue
+                        : Colors.grey.shade300,
+                    foregroundColor: _filter == MemberFilter.inactive
+                        ? Colors.white
+                        : Colors.black87,
+                    side: BorderSide(
+                      color: _filter == MemberFilter.inactive
+                          ? Colors.blue.shade900
+                          : Colors.grey.shade400,
+                      width: _filter == MemberFilter.inactive ? 1.5 : 1,
+                    ),
+                  ),
+                  onPressed: () {
+                    setState(() => _filter = MemberFilter.inactive);
+                  },
+                  child: const Text('Inactivos'),
+                ),
+                const SizedBox(width: 10),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
@@ -111,27 +174,6 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                     setState(() => _filter = MemberFilter.all);
                   },
                   child: const Text('Todos'),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _filter == MemberFilter.active
-                        ? Colors.blue
-                        : Colors.grey.shade300,
-                    foregroundColor: _filter == MemberFilter.active
-                        ? Colors.white
-                        : Colors.black87,
-                    side: BorderSide(
-                      color: _filter == MemberFilter.active
-                          ? Colors.blue.shade900
-                          : Colors.grey.shade400,
-                      width: _filter == MemberFilter.active ? 1.5 : 1,
-                    ),
-                  ),
-                  onPressed: () {
-                    setState(() => _filter = MemberFilter.active);
-                  },
-                  child: const Text('Activos'),
                 ),
               ],
             ),
@@ -213,26 +255,35 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
                     await _runAction(() async {
                       setState(() {
                         member.isActive = !member.isActive;
-                            member.history.add(
-                              HistoryItem(
-                                member.isActive
-                                    ? '${member.displayName} fue reactivado'
-                                    : '${member.displayName} fue dado de baja',
-                                DateTime.now(),
-                              ),
-                            );
+                        final action = member.isActive ? 'reactivado' : 'dado de baja';
+                        final now = DateTime.now();
+                        member.history.add(
+                          HistoryItem(
+                            '${member.displayName} fue $action',
+                            now,
+                          ),
+                        );
+                        widget.team.teamHistory.add(
+                          HistoryItem(
+                            '${member.displayName} fue $action por ${actorMember.displayName}',
+                            now,
+                          ),
+                        );
                       });
                       await _persist();
                     });
                   },
-                  onMakeAdmin: () async {
+                  onMakeGestor: () async {
                     await _runAction(() async {
                       setState(() {
-                        member.role = UserRole.admin;
+                        member.role = UserRole.gestor;
                       });
                       await _persist();
                     });
                   },
+                  backgroundColor: _filter == MemberFilter.all && !member.isActive
+                      ? Colors.red.shade50
+                      : null,
                   onDeleteMember: () => _confirmDeleteMember(context, member),
                 );
               },
@@ -436,6 +487,12 @@ class _TeamDetailsTabState extends State<TeamDetailsTab> {
 
     await _runAction(() async {
       setState(() {
+        widget.team.teamHistory.add(
+          HistoryItem(
+            '${member.displayName} fue eliminado del equipo por ${widget.currentUser.displayName}',
+            DateTime.now(),
+          ),
+        );
         widget.team.members.removeWhere((m) => m.id == member.id);
         widget.suggestions.removeWhere(
           (s) => s.to.id == member.id || s.from.id == member.id,

@@ -1,7 +1,5 @@
 import 'dart:math';
 
-import 'package:up_down/config/app_config.dart';
-
 enum UserRole { admin, gestor, user }
 
 class _Id {
@@ -44,8 +42,7 @@ class Member {
         history = history ?? [];
 
   int get totalScore {
-    return (positives * AppConfig.positiveValue) +
-        (negatives * AppConfig.negativeValue);
+    return positives - negatives;
   }
 
   String get displayName {
@@ -103,16 +100,24 @@ class Member {
 
 class TeamSettings {
   bool allowExternalSuggestions;
+  bool autoApproveJoinRequests;
 
-  TeamSettings({this.allowExternalSuggestions = false});
+  TeamSettings({
+    this.allowExternalSuggestions = false,
+    this.autoApproveJoinRequests = false,
+  });
 
   Map<String, dynamic> toMap() {
-    return {'allowExternalSuggestions': allowExternalSuggestions};
+    return {
+      'allowExternalSuggestions': allowExternalSuggestions,
+      'autoApproveJoinRequests': autoApproveJoinRequests,
+    };
   }
 
   factory TeamSettings.fromMap(Map<String, dynamic> map) {
     return TeamSettings(
       allowExternalSuggestions: map['allowExternalSuggestions'] as bool? ?? false,
+      autoApproveJoinRequests: map['autoApproveJoinRequests'] as bool? ?? false,
     );
   }
 }

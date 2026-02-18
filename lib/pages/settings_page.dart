@@ -17,8 +17,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late int positiveValue;
-  late int negativeValue;
   late TextEditingController _nameController;
   late TextEditingController _lastNameController;
 
@@ -27,8 +25,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    positiveValue = AppConfig.positiveValue;
-    negativeValue = AppConfig.negativeValue;
     _nameController = TextEditingController(text: _currentUser?.name ?? '');
     _lastNameController = TextEditingController(text: _currentUser?.lastName ?? '');
   }
@@ -50,9 +46,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     try {
-      AppConfig.positiveValue = positiveValue;
-      AppConfig.negativeValue = negativeValue;
-
       final user = _currentUser;
       if (user != null) {
         final newName = _nameController.text.trim();
@@ -125,41 +118,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 decoration: const InputDecoration(labelText: 'Apellidos'),
               ),
               const SizedBox(height: 30),
-              const Text(
-                'Sistema de puntuacion',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  const Text('Valor de cada positivo (+): '),
-                  IconButton(
-                    icon: const Icon(Icons.remove),
-                    onPressed: () => setState(() => positiveValue--),
-                  ),
-                  Text('$positiveValue'),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () => setState(() => positiveValue++),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Text('Valor de cada negativo (-): '),
-                  IconButton(
-                    icon: const Icon(Icons.remove),
-                    onPressed: () => setState(() => negativeValue--),
-                  ),
-                  Text('$negativeValue'),
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () => setState(() => negativeValue++),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
               const Text(
                 'Mostrar secciones de estadisticas',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),

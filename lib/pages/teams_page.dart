@@ -3,6 +3,7 @@ import 'package:up_down/models/models.dart';
 import 'package:up_down/services/app_data_service.dart';
 import 'package:up_down/services/auth_service.dart';
 import 'package:up_down/widgets/base_scaffold.dart';
+import 'package:up_down/widgets/error_dialog.dart';
 import 'package:up_down/widgets/generated_avatar.dart';
 import 'package:up_down/widgets/success_snackbar.dart';
 
@@ -138,10 +139,10 @@ class _TeamsPageState extends State<TeamsPage> {
                     }
                   },
                   icon: const Icon(Icons.link),
-                  label: const Text('Gestionar solicitudes de vinculacion'),
+                  label: const Text('Solicitudes'),
                 ),
               ),
-            if (_currentUser!.role != UserRole.admin && !(_currentProfile?.isLinked ?? false))
+            if (_currentProfile != null && !(_currentProfile!.isLinked))
               Card(
                 margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
                 child: Padding(
@@ -425,23 +426,38 @@ class _TeamsPageState extends State<TeamsPage> {
             ElevatedButton(
               onPressed: () async {
                 Navigator.pop(context);
-                await _runAction(() async {
-                  await AppDataService.instance.createLinkRequest(
-                    userId: _currentProfile!.uid,
-                    email: _currentProfile!.email,
-                    name: _currentUser!.name,
-                    lastName: _currentUser!.lastName,
-                    team: selectedTeam,
-                    note: noteController.text,
+                late bool autoApproved;
+                try {
+                  await _runAction(() async {
+                    autoApproved = await AppDataService.instance.createLinkRequest(
+                      userId: _currentProfile!.uid,
+                      email: _currentProfile!.email,
+                      name: _currentUser!.name,
+                      lastName: _currentUser!.lastName,
+                      team: selectedTeam,
+                      note: noteController.text,
+                    );
+                  });
+                } catch (e) {
+                  if (!mounted) {
+                    return;
+                  }
+                  await showErrorDialog(
+                    this.context,
+                    title: 'Error al solicitar vinculacion',
+                    error: e,
                   );
-                });
+                  return;
+                }
 
                 if (!mounted) {
                   return;
                 }
                 showSuccessSnackBar(
                   this.context,
-                  'Solicitud enviada al administrador',
+                  autoApproved
+                      ? 'Vinculacion autoaprobada'
+                      : 'Solicitud enviada al administrador',
                 );
                 await _loadData();
               },

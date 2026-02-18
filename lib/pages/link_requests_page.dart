@@ -18,6 +18,8 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
   List<Team> _teams = [];
   List<Suggestion> _suggestions = [];
   List<LinkRequest> _requests = [];
+  bool _canManageAllRequests = false;
+  String? _managedTeamId;
   bool _loading = true;
   String? _error;
 
@@ -36,12 +38,17 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
     try {
       final profile = await AuthService.instance.getCurrentUserProfile();
       final user = profile.member;
-      if (user.role != UserRole.admin) {
-        throw Exception('Solo administradores pueden gestionar solicitudes.');
+      if (user.role != UserRole.admin && user.role != UserRole.gestor) {
+        throw Exception('Solo admin o gestor puede gestionar solicitudes.');
       }
 
       final snapshot = await AppDataService.instance.loadOrSeed(canSeed: true);
-      final requests = await AppDataService.instance.getPendingLinkRequests();
+      final allRequests = await AppDataService.instance.getPendingLinkRequests();
+      final canManageAll = user.role == UserRole.admin;
+      final managedTeamId = canManageAll ? null : profile.linkedTeamId;
+      final requests = canManageAll
+          ? allRequests
+          : allRequests.where((r) => r.teamId == managedTeamId).toList();
 
       if (!mounted) {
         return;
@@ -52,6 +59,8 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
         _teams = snapshot.teams;
         _suggestions = snapshot.suggestions;
         _requests = requests;
+        _canManageAllRequests = canManageAll;
+        _managedTeamId = managedTeamId;
         _loading = false;
       });
     } catch (e) {
@@ -90,7 +99,7 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
 
     if (_error != null || _currentUser == null || _currentProfile == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Solicitudes de vinculacion')),
+        appBar: AppBar(title: const Text('Solicitudes')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -111,7 +120,7 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
     }
 
     return BaseScaffold(
-      title: 'Solicitudes de vinculacion',
+      title: 'Solicitudes',
       args: {
         'currentUser': _currentUser,
         'currentProfile': _currentProfile,
@@ -198,6 +207,9 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
   }
 
   void _showApproveDialog(BuildContext context, LinkRequest request, Team team) {
+    if (!_canManageAllRequests && _managedTeamId != team.id) {
+      return;
+    }
     final members = List<Member>.from(team.members);
     final createId = '__create_new__';
     String selected = createId;
@@ -288,6 +300,9 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
   }
 
   void _showRejectDialog(BuildContext context, LinkRequest request) {
+    if (!_canManageAllRequests && _managedTeamId != request.teamId) {
+      return;
+    }
     final reasonController = TextEditingController();
     showDialog(
       context: context,

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:up_down/models/models.dart';
+import 'package:up_down/services/app_data_service.dart';
 
 class CurrentUserProfile {
   final String uid;
@@ -71,26 +72,65 @@ class AuthService {
       throw Exception('No hay un usuario autenticado.');
     }
 
-    final userDoc = await _firestore.collection('users').doc(user.uid).get();
+    final userRef = _firestore.collection('users').doc(user.uid);
+    final userDoc = await userRef.get();
     final data = userDoc.data() ?? <String, dynamic>{};
-    final name = (data['name'] as String?)?.trim();
-    final lastName = (data['lastName'] as String?)?.trim() ?? '';
-    final roleName = data['role'] as String?;
-    final linkedTeamId = data['linkedTeamId'] as String?;
-    final linkedMemberId = data['linkedMemberId'] as String?;
+
+    final existingEmail = (data['email'] as String?)?.trim();
+    final resolvedEmail = (user.email ?? existingEmail ?? '').trim();
+    final defaultName = resolvedEmail.isEmpty ? 'Usuario' : resolvedEmail;
+    final resolvedName = (data['name'] as String?)?.trim() ?? defaultName;
+    final resolvedLastName = (data['lastName'] as String?)?.trim() ?? '';
+    final resolvedRole = (data['role'] as String?) ?? UserRole.user.name;
+    final resolvedEmailLower = resolvedEmail.toLowerCase();
+
+    final needsBootstrap = !userDoc.exists ||
+        (data['role'] as String?) == null ||
+        (data['email'] as String?) == null ||
+        (data['emailLower'] as String?) == null;
+    if (needsBootstrap) {
+      await userRef.set({
+        'name': resolvedName,
+        'lastName': resolvedLastName,
+        'role': resolvedRole,
+        'email': resolvedEmail,
+        'emailLower': resolvedEmailLower,
+        'linkStatus': (data['linkStatus'] as String?) ?? 'unlinked',
+        'linkedTeamId': data['linkedTeamId'],
+        'linkedMemberId': data['linkedMemberId'],
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    var linkedTeamId = data['linkedTeamId'] as String?;
+    var linkedMemberId = data['linkedMemberId'] as String?;
+    final canAttemptAutoLink = resolvedRole != UserRole.admin.name &&
+        (linkedTeamId == null || linkedTeamId.isEmpty || linkedMemberId == null || linkedMemberId.isEmpty);
+    if (canAttemptAutoLink) {
+      final autoLinked = await AppDataService.instance.tryAutoLinkOnLogin(
+        userUid: user.uid,
+        email: resolvedEmail,
+        name: resolvedName,
+        lastName: resolvedLastName,
+      );
+      if (autoLinked != null) {
+        linkedTeamId = autoLinked.teamId;
+        linkedMemberId = autoLinked.memberId;
+      }
+    }
 
     return CurrentUserProfile(
       uid: user.uid,
-      email: user.email ?? '',
+      email: resolvedEmail,
       linkedTeamId: linkedTeamId,
       linkedMemberId: linkedMemberId,
       member: Member(
         id: user.uid,
-        name: name == null || name.isEmpty ? user.email ?? 'Usuario' : name,
-        lastName: lastName,
-        role: roleName == UserRole.admin.name
+        name: resolvedName.isEmpty ? 'Usuario' : resolvedName,
+        lastName: resolvedLastName,
+        role: resolvedRole == UserRole.admin.name
             ? UserRole.admin
-            : roleName == UserRole.gestor.name
+            : resolvedRole == UserRole.gestor.name
                 ? UserRole.gestor
                 : UserRole.user,
       ),

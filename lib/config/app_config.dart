@@ -1,27 +1,16 @@
-/// Configuración general de la aplicación.
-/// Aquí se centralizan todas las opciones de configuración,
-/// tanto de puntuación como de visibilidad de estadísticas.
+/// Configuracion general de la aplicacion.
+/// Aqui se centralizan las opciones de visibilidad de estadisticas.
 class AppConfig {
   // =============================
-  // PUNTUACIÓN
+  // ESTADISTICAS
   // =============================
 
-  /// Valor que suma cada positivo.
-  static int positiveValue = 1;
-
-  /// Valor que resta cada negativo.
-  static int negativeValue = -1;
-
-  // =============================
-  // ESTADÍSTICAS
-  // =============================
-
-  /// Mostrar/ocultar la sección de estadísticas globales.
+  /// Mostrar/ocultar la seccion de estadisticas globales.
   static bool showGlobalStats = true;
 
-  /// Mostrar/ocultar la sección de estadísticas por equipos.
+  /// Mostrar/ocultar la seccion de estadisticas por equipos.
   static bool showTeamStats = true;
 
-  /// Mostrar/ocultar la sección de estadísticas por integrantes.
+  /// Mostrar/ocultar la seccion de estadisticas por integrantes.
   static bool showMemberStats = true;
 }

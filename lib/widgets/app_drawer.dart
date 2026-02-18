@@ -83,7 +83,7 @@ class AppDrawer extends StatelessWidget {
           if (currentUser.role == UserRole.admin)
             ListTile(
               leading: const Icon(Icons.link),
-              title: const Text('Solicitudes vinculacion'),
+              title: const Text('Solicitudes'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, '/link-requests');
@@ -92,7 +92,7 @@ class AppDrawer extends StatelessWidget {
           if (currentUser.role == UserRole.admin)
             ListTile(
               leading: const Icon(Icons.manage_accounts),
-              title: const Text('Roles de usuarios'),
+              title: const Text('Usuarios'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, '/user-roles');

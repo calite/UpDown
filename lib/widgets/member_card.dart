@@ -13,8 +13,9 @@ class MemberCard extends StatelessWidget {
   final VoidCallback? onDirectPositive;
   final VoidCallback? onDirectNegative;
   final VoidCallback? onToggleActive;
-  final VoidCallback? onMakeAdmin;
+  final VoidCallback? onMakeGestor;
   final VoidCallback? onDeleteMember;
+  final Color? backgroundColor;
 
   const MemberCard({
     super.key,
@@ -27,25 +28,32 @@ class MemberCard extends StatelessWidget {
     this.onDirectPositive,
     this.onDirectNegative,
     this.onToggleActive,
-    this.onMakeAdmin,
+    this.onMakeGestor,
     this.onDeleteMember,
+    this.backgroundColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final isSelf = currentUser.id == member.id;
+    final canRate = currentUser.isActive;
+    final canUsePositive = currentUser.role == UserRole.user
+        ? onSuggestPositive != null
+        : onDirectPositive != null;
+    final canUseNegative = currentUser.role == UserRole.user
+        ? onSuggestNegative != null
+        : onDirectNegative != null;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      color: backgroundColor,
       child: ListTile(
         leading: GeneratedAvatar.circle(seed: member.id, label: member.displayName),
         title: Text(member.displayName),
-        subtitle: Text(
-          'Positivos: ${member.positives} | Negativos: ${member.negatives}',
-        ),
+        subtitle: Text('Positivos: ${member.positives} | Negativos: ${member.negatives}'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (!isSelf)
+            if (!isSelf && canRate && canUsePositive)
               IconButton(
                 icon: const Icon(Icons.thumb_up, color: Colors.green),
                 onPressed: () {
@@ -57,7 +65,7 @@ class MemberCard extends StatelessWidget {
                   }
                 },
               ),
-            if (!isSelf)
+            if (!isSelf && canRate && canUseNegative)
               IconButton(
                 icon: const Icon(Icons.thumb_down, color: Colors.red),
                 onPressed: () {
@@ -74,8 +82,8 @@ class MemberCard extends StatelessWidget {
                 onSelected: (value) {
                   if (value == 'toggleActive') {
                     onToggleActive?.call();
-                  } else if (value == 'makeAdmin') {
-                    onMakeAdmin?.call();
+                  } else if (value == 'makeGestor') {
+                    onMakeGestor?.call();
                   } else if (value == 'deleteMember') {
                     onDeleteMember?.call();
                   }
@@ -86,8 +94,8 @@ class MemberCard extends StatelessWidget {
                     child: Text(member.isActive ? 'Deshabilitar' : 'Reactivar'),
                   ),
                   const PopupMenuItem(
-                    value: 'makeAdmin',
-                    child: Text('Hacer administrador'),
+                    value: 'makeGestor',
+                    child: Text('Hacer gestor'),
                   ),
                   const PopupMenuItem(
                     value: 'deleteMember',

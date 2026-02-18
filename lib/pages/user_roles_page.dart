@@ -91,7 +91,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
 
     if (_error != null || _currentUser == null || _currentProfile == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Roles de usuarios')),
+        appBar: AppBar(title: const Text('Usuarios')),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -112,7 +112,7 @@ class _UserRolesPageState extends State<UserRolesPage> {
     }
 
     return BaseScaffold(
-      title: 'Roles de usuarios',
+      title: 'Usuarios',
       args: {
         'currentUser': _currentUser,
         'currentProfile': _currentProfile,
@@ -127,14 +127,67 @@ class _UserRolesPageState extends State<UserRolesPage> {
             final user = _users[index];
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: ListTile(
-                title: Text(user.displayName),
-                subtitle: Text(user.email),
-                trailing: ElevatedButton(
-                  onPressed: user.uid == _currentProfile!.uid
-                      ? null
-                      : () => _showRoleDialog(user),
-                  child: const Text('Cambiar rol'),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.displayName,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(user.email),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: user.uid == _currentProfile!.uid
+                                    ? null
+                                    : () => _showRoleDialog(user),
+                                icon: const Icon(Icons.manage_accounts),
+                                label: Text('Rol: ${_roleLabel(user.role)}'),
+                                style: OutlinedButton.styleFrom(
+                                  shape: const StadiumBorder(),
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: user.uid == _currentProfile!.uid ||
+                                        user.role == UserRole.admin
+                                    ? null
+                                    : () => _showTeamDialog(user),
+                                icon: const Icon(Icons.group),
+                                label: Text(
+                                  'Equipo: ${_teamLabel(user.role, user.linkedTeamId)}',
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  shape: const StadiumBorder(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: user.uid == _currentProfile!.uid
+                              ? null
+                              : () => _confirmDeleteUser(user),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade700,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('Eliminar'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             );
@@ -146,7 +199,6 @@ class _UserRolesPageState extends State<UserRolesPage> {
 
   void _showRoleDialog(AppUserRecord user) {
     UserRole selectedRole = user.role;
-    String? selectedTeamId = user.linkedTeamId;
 
     showDialog(
       context: context,
@@ -170,24 +222,6 @@ class _UserRolesPageState extends State<UserRolesPage> {
                   }
                 },
               ),
-              if (selectedRole == UserRole.gestor) ...[
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedTeamId,
-                  decoration: const InputDecoration(labelText: 'Equipo del gestor'),
-                  items: _teams
-                      .map(
-                        (team) => DropdownMenuItem(
-                          value: team.id,
-                          child: Text(team.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setLocalState(() => selectedTeamId = value);
-                  },
-                ),
-              ],
             ],
           ),
           actions: [
@@ -197,25 +231,13 @@ class _UserRolesPageState extends State<UserRolesPage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (selectedRole == UserRole.gestor &&
-                    (selectedTeamId == null || selectedTeamId!.isEmpty)) {
-                  await showErrorDialog(
-                    this.context,
-                    title: ErrorTitles.requiredData,
-                    message: 'Selecciona un equipo para el gestor',
-                  );
-                  return;
-                }
-
                 Navigator.pop(context);
                 try {
                   await _runAction(() async {
                     await AppDataService.instance.updateUserRole(
                       userUid: user.uid,
                       role: selectedRole,
-                      linkedTeamIdForGestor: selectedRole == UserRole.gestor
-                          ? selectedTeamId
-                          : null,
+                      linkedTeamId: user.linkedTeamId,
                     );
                   });
                 } catch (e) {
@@ -247,4 +269,174 @@ class _UserRolesPageState extends State<UserRolesPage> {
       ),
     );
   }
+
+  Future<void> _confirmDeleteUser(AppUserRecord user) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar usuario'),
+        content: Text(
+          'Se eliminara el usuario ${user.displayName}. Esta accion no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _runAction(() async {
+        await AppDataService.instance.deleteUserRecord(
+          userUid: user.uid,
+          actorDisplayName: _currentUser?.displayName ?? 'Administrador',
+        );
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      final details = e is FirebaseException
+          ? 'code=${e.code}\nmessage=${e.message ?? ''}\nraw=$e'
+          : e.toString();
+      await showErrorDialog(
+        context,
+        title: 'Error al eliminar usuario',
+        message: details,
+      );
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+    showSuccessSnackBar(context, 'Usuario eliminado');
+    await _loadData();
+  }
+
+  void _showTeamDialog(AppUserRecord user) {
+    String? selectedTeamId = user.linkedTeamId;
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setLocalState) => AlertDialog(
+          title: Text('Equipo de ${user.displayName}'),
+          content: DropdownButtonFormField<String?>(
+            initialValue: selectedTeamId,
+            decoration: InputDecoration(
+              labelText: user.role == UserRole.gestor
+                  ? 'Equipo del gestor'
+                  : 'Equipo asociado (opcional)',
+            ),
+            items: [
+              if (user.role != UserRole.gestor)
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Sin equipo asociado'),
+                ),
+              ..._teams.map(
+                (team) => DropdownMenuItem<String?>(
+                  value: team.id,
+                  child: Text(team.name),
+                ),
+              ),
+            ],
+            onChanged: (value) {
+              setLocalState(() => selectedTeamId = value);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (user.role == UserRole.gestor &&
+                    (selectedTeamId == null || selectedTeamId!.isEmpty)) {
+                  await showErrorDialog(
+                    this.context,
+                    title: ErrorTitles.requiredData,
+                    message: 'Selecciona un equipo para el gestor',
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+                try {
+                  await _runAction(() async {
+                    await AppDataService.instance.updateUserTeamAssociation(
+                      userUid: user.uid,
+                      linkedTeamId: selectedTeamId,
+                    );
+                  });
+                } catch (e) {
+                  if (!mounted) {
+                    return;
+                  }
+                  final details = e is FirebaseException
+                      ? 'code=${e.code}\nmessage=${e.message ?? ''}\nraw=$e'
+                      : e.toString();
+                  await showErrorDialog(
+                    this.context,
+                    title: ErrorTitles.updateRole,
+                    message: details,
+                  );
+                  return;
+                }
+
+                if (!mounted) {
+                  return;
+                }
+
+                showSuccessSnackBar(this.context, 'Equipo actualizado');
+                await _loadData();
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Administrador';
+      case UserRole.gestor:
+        return 'Gestor';
+      case UserRole.user:
+        return 'Usuario';
+    }
+  }
+
+  String _teamLabel(UserRole role, String? teamId) {
+    if (role == UserRole.admin) {
+      return 'Todos';
+    }
+    if (teamId == null || teamId.isEmpty) {
+      return 'Sin equipo';
+    }
+    final team = _teams.where((t) => t.id == teamId).firstOrNull;
+    return team?.name ?? 'Sin equipo';
+  }
+}
+
+extension _IterableFirstOrNull<E> on Iterable<E> {
+  E? get firstOrNull => isEmpty ? null : first;
 }

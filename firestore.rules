@@ -31,6 +31,15 @@ service cloud.firestore {
       return isAdmin() || (isGestor() && userDoc().linkedTeamId == teamId);
     }
 
+    function canManageLinkRequestTeam(teamId) {
+      return isAdmin() || (isGestor() && userDoc().linkedTeamId == teamId);
+    }
+
+    function teamAutoApprove(teamId) {
+      return exists(/databases/$(database)/documents/teams/$(teamId)) &&
+        get(/databases/$(database)/documents/teams/$(teamId)).data.settings.autoApproveJoinRequests == true;
+    }
+
     function isFirstSuggestionDecision() {
       return resource.data.approved == false &&
         resource.data.rejected == false &&
@@ -54,18 +63,48 @@ service cloud.firestore {
       return request.auth.uid != userId || request.resource.data.role == 'admin';
     }
 
-    match /users/{userId} {
-      allow read: if isSelf(userId) || isAdmin();
-      allow create: if isSelf(userId);
-      allow update: if (isAdmin() && adminNotDemotingSelf(userId)) || (
-        isSelf(userId) &&
+    function gestorCanUpdateUser(userId) {
+      return isGestor() &&
         request.resource.data.role == resource.data.role &&
         request.resource.data.email == resource.data.email &&
         request.resource.data.emailLower == resource.data.emailLower &&
-        request.resource.data.linkedTeamId == resource.data.linkedTeamId &&
-        request.resource.data.linkedMemberId == resource.data.linkedMemberId &&
-        request.resource.data.linkStatus == resource.data.linkStatus
-      );
+        request.resource.data.linkedTeamId == userDoc().linkedTeamId &&
+        (
+          resource.data.linkedTeamId == null ||
+          resource.data.linkedTeamId == userDoc().linkedTeamId
+        );
+    }
+
+    function selfCanAutoLink(userId) {
+      return isSelf(userId) &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.email == resource.data.email &&
+        request.resource.data.emailLower == resource.data.emailLower &&
+        request.resource.data.linkStatus == 'linked' &&
+        request.resource.data.linkedTeamId is string &&
+        request.resource.data.linkedMemberId is string &&
+        teamAutoApprove(request.resource.data.linkedTeamId) &&
+        existsAfter(/databases/$(database)/documents/teams/$(request.resource.data.linkedTeamId)/members/$(request.resource.data.linkedMemberId)) &&
+        getAfter(/databases/$(database)/documents/teams/$(request.resource.data.linkedTeamId)/members/$(request.resource.data.linkedMemberId)).data.emailLower == resource.data.emailLower &&
+        getAfter(/databases/$(database)/documents/teams/$(request.resource.data.linkedTeamId)/members/$(request.resource.data.linkedMemberId)).data.authUid == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isAdmin();
+      allow create: if isSelf(userId);
+      allow update: if (isAdmin() && adminNotDemotingSelf(userId)) ||
+                    gestorCanUpdateUser(userId) ||
+                    selfCanAutoLink(userId) ||
+                    (
+                      isSelf(userId) &&
+                      request.resource.data.role == resource.data.role &&
+                      request.resource.data.email == resource.data.email &&
+                      request.resource.data.emailLower == resource.data.emailLower &&
+                      request.resource.data.linkedTeamId == resource.data.linkedTeamId &&
+                      request.resource.data.linkedMemberId == resource.data.linkedMemberId &&
+                      request.resource.data.linkStatus == resource.data.linkStatus
+                    );
+      allow delete: if isAdmin() && request.auth.uid != userId;
     }
 
     match /teams/{teamId} {
@@ -75,8 +114,21 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isSignedIn();
-        allow create, delete: if isAdmin();
-        allow update: if isAdmin() || (isGestor() && userDoc().linkedTeamId == teamId);
+        allow create, delete: if isAdmin() || (
+          isSignedIn() &&
+          teamAutoApprove(teamId) &&
+          request.resource.data.authUid == request.auth.uid &&
+          request.resource.data.emailLower == userDoc().emailLower
+        );
+        allow update: if isAdmin() ||
+          (isGestor() && userDoc().linkedTeamId == teamId) ||
+          (
+            isSignedIn() &&
+            teamAutoApprove(teamId) &&
+            request.resource.data.authUid == request.auth.uid &&
+            request.resource.data.emailLower == userDoc().emailLower &&
+            (resource.data.authUid == null || resource.data.authUid == request.auth.uid)
+          );
       }
     }
 
@@ -96,12 +148,11 @@ service cloud.firestore {
     }
 
     match /linkRequests/{requestId} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == resource.data.userId);
+      allow read: if (isSignedIn() && request.auth.uid == resource.data.userId) ||
+                  canManageLinkRequestTeam(resource.data.teamId);
       allow create: if isSignedIn() &&
-                    request.resource.data.userId == request.auth.uid &&
-                    request.resource.data.status == 'pending';
-      allow update, delete: if isAdmin();
+                    request.resource.data.userId == request.auth.uid;
+      allow update, delete: if canManageLinkRequestTeam(resource.data.teamId);
     }
   }
 }
-

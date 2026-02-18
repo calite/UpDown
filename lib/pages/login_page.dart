@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:up_down/config/error_titles.dart';
 import 'package:up_down/services/auth_service.dart';
 import 'package:up_down/widgets/error_dialog.dart';
@@ -57,13 +58,43 @@ class _LoginPageState extends State<LoginPage> {
       await showErrorDialog(
         context,
         title: ErrorTitles.auth,
-        error: e,
+        message: _friendlyAuthError(e, isRegisterMode: _isRegisterMode),
       );
     } finally {
       if (mounted) {
         setState(() => _loading = false);
       }
     }
+  }
+
+  String _friendlyAuthError(
+    Object error, {
+    required bool isRegisterMode,
+  }) {
+    if (error is FirebaseAuthException) {
+      if (!isRegisterMode) {
+        switch (error.code) {
+          case 'invalid-credential':
+          case 'wrong-password':
+          case 'user-not-found':
+          case 'invalid-email':
+            return 'Credenciales o usuario incorrecto.';
+        }
+      }
+      switch (error.code) {
+        case 'invalid-email':
+          return 'El correo ingresado no es valido.';
+        case 'too-many-requests':
+          return 'Demasiados intentos fallidos. Intenta nuevamente en unos minutos.';
+        case 'network-request-failed':
+          return 'No se pudo conectar. Revisa tu conexion e intenta de nuevo.';
+        case 'email-already-in-use':
+          return 'Ese correo ya esta registrado.';
+        case 'weak-password':
+          return 'La contrasena es demasiado debil.';
+      }
+    }
+    return 'No se pudo completar la autenticacion. Intenta nuevamente.';
   }
 
   @override
