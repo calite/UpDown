@@ -15,6 +15,7 @@ class MemberCard extends StatelessWidget {
   final VoidCallback? onToggleActive;
   final VoidCallback? onMakeGestor;
   final VoidCallback? onDeleteMember;
+  final VoidCallback? onEditMember;
   final Color? backgroundColor;
 
   const MemberCard({
@@ -30,6 +31,7 @@ class MemberCard extends StatelessWidget {
     this.onToggleActive,
     this.onMakeGestor,
     this.onDeleteMember,
+    this.onEditMember,
     this.backgroundColor,
   });
 
@@ -43,13 +45,43 @@ class MemberCard extends StatelessWidget {
     final canUseNegative = currentUser.role == UserRole.user
         ? onSuggestNegative != null
         : onDirectNegative != null;
+    final canOpenMenu =
+        onEditMember != null ||
+        onToggleActive != null ||
+        onMakeGestor != null ||
+        onDeleteMember != null;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       color: backgroundColor,
       child: ListTile(
-        leading: GeneratedAvatar.circle(seed: member.id, label: member.displayName),
-        title: Text(member.displayName),
-        subtitle: Text('Positivos: ${member.positives} | Negativos: ${member.negatives}'),
+        leading: GeneratedAvatar.circle(
+          seed: member.id,
+          label: member.displayName,
+        ),
+        title: Row(
+          children: [
+            Expanded(child: Text(member.displayName)),
+            if (member.alias.trim().isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  member.alias.trim(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Text(
+          'Positivos: ${member.positives} | Negativos: ${member.negatives}',
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -77,10 +109,12 @@ class MemberCard extends StatelessWidget {
                   }
                 },
               ),
-            if (currentUser.role == UserRole.admin)
+            if (canOpenMenu)
               PopupMenuButton<String>(
                 onSelected: (value) {
-                  if (value == 'toggleActive') {
+                  if (value == 'editMember') {
+                    onEditMember?.call();
+                  } else if (value == 'toggleActive') {
                     onToggleActive?.call();
                   } else if (value == 'makeGestor') {
                     onMakeGestor?.call();
@@ -88,20 +122,44 @@ class MemberCard extends StatelessWidget {
                     onDeleteMember?.call();
                   }
                 },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'toggleActive',
-                    child: Text(member.isActive ? 'Deshabilitar' : 'Reactivar'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'makeGestor',
-                    child: Text('Hacer gestor'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'deleteMember',
-                    child: Text('Eliminar integrante'),
-                  ),
-                ],
+                itemBuilder: (context) {
+                  final items = <PopupMenuEntry<String>>[];
+                  if (onEditMember != null) {
+                    items.add(
+                      const PopupMenuItem(
+                        value: 'editMember',
+                        child: Text('Editar datos'),
+                      ),
+                    );
+                  }
+                  if (onToggleActive != null) {
+                    items.add(
+                      PopupMenuItem(
+                        value: 'toggleActive',
+                        child: Text(
+                          member.isActive ? 'Deshabilitar' : 'Reactivar',
+                        ),
+                      ),
+                    );
+                  }
+                  if (onMakeGestor != null) {
+                    items.add(
+                      const PopupMenuItem(
+                        value: 'makeGestor',
+                        child: Text('Hacer gestor'),
+                      ),
+                    );
+                  }
+                  if (onDeleteMember != null) {
+                    items.add(
+                      const PopupMenuItem(
+                        value: 'deleteMember',
+                        child: Text('Eliminar integrante'),
+                      ),
+                    );
+                  }
+                  return items;
+                },
               ),
           ],
         ),

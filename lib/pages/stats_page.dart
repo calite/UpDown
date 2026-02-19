@@ -2,27 +2,116 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:up_down/config/app_config.dart';
 import 'package:up_down/models/models.dart';
+import 'package:up_down/services/app_data_service.dart';
+import 'package:up_down/services/auth_service.dart';
 import 'package:up_down/widgets/app_drawer.dart';
 
-class StatsPage extends StatelessWidget {
+class StatsPage extends StatefulWidget {
   final Map<String, dynamic> args;
 
   const StatsPage({super.key, this.args = const {}});
 
   @override
+  State<StatsPage> createState() => _StatsPageState();
+}
+
+class _StatsPageState extends State<StatsPage> {
+  bool _loading = true;
+  String? _error;
+  List<Team> _teams = [];
+  late Map<String, dynamic> _resolvedArgs;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedArgs = Map<String, dynamic>.from(widget.args);
+    _loadIfNeeded();
+  }
+
+  Future<void> _loadIfNeeded() async {
+    final teamsFromArgs = widget.args['teams'] as List<Team>?;
+    if (teamsFromArgs != null && teamsFromArgs.isNotEmpty) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _teams = teamsFromArgs;
+        _loading = false;
+      });
+      return;
+    }
+
+    try {
+      final profile = await AuthService.instance.getCurrentUserProfile();
+      final snapshot = await AppDataService.instance.loadOrSeed(
+        canSeed: profile.member.role == UserRole.admin,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _teams = snapshot.teams;
+        _resolvedArgs = {
+          ...widget.args,
+          'currentUser': profile.member,
+          'currentProfile': profile,
+          'teams': snapshot.teams,
+          'suggestions': snapshot.suggestions,
+        };
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final teams = args['teams'] as List<Team>? ?? [];
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Estadisticas')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(_error!),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _loading = true;
+                      _error = null;
+                    });
+                    _loadIfNeeded();
+                  },
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     int totalPositives = 0;
     int totalNegatives = 0;
-
-    for (final team in teams) {
+    for (final team in _teams) {
       for (final member in team.members) {
         totalPositives += member.positives;
         totalNegatives += member.negatives;
       }
     }
-
     final total = totalPositives + totalNegatives;
 
     return Scaffold(
@@ -39,8 +128,8 @@ class StatsPage extends StatelessWidget {
           ),
         ],
       ),
-      endDrawer: AppDrawer(args: args),
-      body: teams.isEmpty
+      endDrawer: AppDrawer(args: _resolvedArgs),
+      body: _teams.isEmpty
           ? const Center(child: Text('No hay datos para mostrar.'))
           : Center(
               child: ConstrainedBox(
@@ -103,7 +192,10 @@ class StatsPage extends StatelessWidget {
                               'Positivos: $totalPositives',
                             ),
                             const SizedBox(width: 20),
-                            _buildLegend(Colors.red, 'Negativos: $totalNegatives'),
+                            _buildLegend(
+                              Colors.red,
+                              'Negativos: $totalNegatives',
+                            ),
                           ],
                         ),
                         const SizedBox(height: 40),
@@ -122,8 +214,8 @@ class StatsPage extends StatelessWidget {
                           child: BarChart(
                             BarChartData(
                               alignment: BarChartAlignment.spaceAround,
-                              maxY: _getMaxYTeams(teams).toDouble(),
-                              barGroups: _buildTeamBarGroups(teams),
+                              maxY: _getMaxYTeams(_teams).toDouble(),
+                              barGroups: _buildTeamBarGroups(_teams),
                               titlesData: FlTitlesData(
                                 leftTitles: AxisTitles(
                                   sideTitles: SideTitles(
@@ -142,9 +234,9 @@ class StatsPage extends StatelessWidget {
                                     showTitles: true,
                                     getTitlesWidget: (value, meta) {
                                       final index = value.toInt();
-                                      if (index >= 0 && index < teams.length) {
+                                      if (index >= 0 && index < _teams.length) {
                                         return Text(
-                                          teams[index].name,
+                                          _teams[index].name,
                                           style: const TextStyle(fontSize: 12),
                                         );
                                       }
@@ -155,17 +247,6 @@ class StatsPage extends StatelessWidget {
                               ),
                               gridData: const FlGridData(show: false),
                               borderData: FlBorderData(show: false),
-                              barTouchData: BarTouchData(
-                                enabled: true,
-                                touchTooltipData: BarTouchTooltipData(
-                                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                                    return BarTooltipItem(
-                                      rod.toY.toInt().toString(),
-                                      const TextStyle(color: Colors.white, fontSize: 14),
-                                    );
-                                  },
-                                ),
-                              ),
                             ),
                           ),
                         ),
@@ -180,11 +261,16 @@ class StatsPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        ...teams.map((team) {
-                          final positives = team.members.map((m) => m.positives).toList();
-                          final negatives = team.members.map((m) => m.negatives).toList();
-                          final names = team.members.map((m) => m.name).toList();
-
+                        ..._teams.map((team) {
+                          final positives = team.members
+                              .map((m) => m.positives)
+                              .toList();
+                          final negatives = team.members
+                              .map((m) => m.negatives)
+                              .toList();
+                          final names = team.members
+                              .map((m) => m.name)
+                              .toList();
                           return Card(
                             margin: const EdgeInsets.only(bottom: 20),
                             child: Padding(
@@ -204,9 +290,16 @@ class StatsPage extends StatelessWidget {
                                     height: 250,
                                     child: BarChart(
                                       BarChartData(
-                                        alignment: BarChartAlignment.spaceAround,
-                                        maxY: _getMaxY(positives, negatives).toDouble(),
-                                        barGroups: _buildMemberBarGroups(positives, negatives),
+                                        alignment:
+                                            BarChartAlignment.spaceAround,
+                                        maxY: _getMaxY(
+                                          positives,
+                                          negatives,
+                                        ).toDouble(),
+                                        barGroups: _buildMemberBarGroups(
+                                          positives,
+                                          negatives,
+                                        ),
                                         titlesData: FlTitlesData(
                                           leftTitles: AxisTitles(
                                             sideTitles: SideTitles(
@@ -215,22 +308,32 @@ class StatsPage extends StatelessWidget {
                                             ),
                                           ),
                                           rightTitles: const AxisTitles(
-                                            sideTitles: SideTitles(showTitles: false),
+                                            sideTitles: SideTitles(
+                                              showTitles: false,
+                                            ),
                                           ),
                                           topTitles: const AxisTitles(
-                                            sideTitles: SideTitles(showTitles: false),
+                                            sideTitles: SideTitles(
+                                              showTitles: false,
+                                            ),
                                           ),
                                           bottomTitles: AxisTitles(
                                             sideTitles: SideTitles(
                                               showTitles: true,
                                               getTitlesWidget: (value, meta) {
                                                 final idx = value.toInt();
-                                                if (idx >= 0 && idx < names.length) {
+                                                if (idx >= 0 &&
+                                                    idx < names.length) {
                                                   return Padding(
-                                                    padding: const EdgeInsets.only(top: 8),
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          top: 8,
+                                                        ),
                                                     child: Text(
                                                       names[idx],
-                                                      style: const TextStyle(fontSize: 11),
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                      ),
                                                     ),
                                                   );
                                                 }
@@ -241,21 +344,6 @@ class StatsPage extends StatelessWidget {
                                         ),
                                         gridData: const FlGridData(show: false),
                                         borderData: FlBorderData(show: false),
-                                        barTouchData: BarTouchData(
-                                          enabled: true,
-                                          touchTooltipData: BarTouchTooltipData(
-                                            getTooltipItem:
-                                                (group, groupIndex, rod, rodIndex) {
-                                              return BarTooltipItem(
-                                                rod.toY.toInt().toString(),
-                                                const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
                                       ),
                                     ),
                                   ),
@@ -305,8 +393,16 @@ class StatsPage extends StatelessWidget {
         BarChartGroupData(
           x: i,
           barRods: [
-            BarChartRodData(toY: positives.toDouble(), color: Colors.green, width: 8),
-            BarChartRodData(toY: negatives.toDouble(), color: Colors.red, width: 8),
+            BarChartRodData(
+              toY: positives.toDouble(),
+              color: Colors.green,
+              width: 8,
+            ),
+            BarChartRodData(
+              toY: negatives.toDouble(),
+              color: Colors.red,
+              width: 8,
+            ),
           ],
           barsSpace: 4,
         ),
@@ -325,8 +421,16 @@ class StatsPage extends StatelessWidget {
         BarChartGroupData(
           x: i,
           barRods: [
-            BarChartRodData(toY: positives[i].toDouble(), color: Colors.green, width: 8),
-            BarChartRodData(toY: negatives[i].toDouble(), color: Colors.red, width: 8),
+            BarChartRodData(
+              toY: positives[i].toDouble(),
+              color: Colors.green,
+              width: 8,
+            ),
+            BarChartRodData(
+              toY: negatives[i].toDouble(),
+              color: Colors.red,
+              width: 8,
+            ),
           ],
           barsSpace: 4,
         ),

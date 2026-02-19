@@ -56,6 +56,7 @@ class AuthService {
     await _firestore.collection('users').doc(uid).set({
       'name': name,
       'lastName': lastName,
+      'alias': '',
       'role': UserRole.user.name,
       'email': email,
       'emailLower': email.trim().toLowerCase(),
@@ -81,10 +82,12 @@ class AuthService {
     final defaultName = resolvedEmail.isEmpty ? 'Usuario' : resolvedEmail;
     final resolvedName = (data['name'] as String?)?.trim() ?? defaultName;
     final resolvedLastName = (data['lastName'] as String?)?.trim() ?? '';
+    final resolvedAlias = (data['alias'] as String?)?.trim() ?? '';
     final resolvedRole = (data['role'] as String?) ?? UserRole.user.name;
     final resolvedEmailLower = resolvedEmail.toLowerCase();
 
-    final needsBootstrap = !userDoc.exists ||
+    final needsBootstrap =
+        !userDoc.exists ||
         (data['role'] as String?) == null ||
         (data['email'] as String?) == null ||
         (data['emailLower'] as String?) == null;
@@ -92,6 +95,7 @@ class AuthService {
       await userRef.set({
         'name': resolvedName,
         'lastName': resolvedLastName,
+        'alias': resolvedAlias,
         'role': resolvedRole,
         'email': resolvedEmail,
         'emailLower': resolvedEmailLower,
@@ -104,8 +108,12 @@ class AuthService {
 
     var linkedTeamId = data['linkedTeamId'] as String?;
     var linkedMemberId = data['linkedMemberId'] as String?;
-    final canAttemptAutoLink = resolvedRole != UserRole.admin.name &&
-        (linkedTeamId == null || linkedTeamId.isEmpty || linkedMemberId == null || linkedMemberId.isEmpty);
+    final canAttemptAutoLink =
+        resolvedRole != UserRole.admin.name &&
+        (linkedTeamId == null ||
+            linkedTeamId.isEmpty ||
+            linkedMemberId == null ||
+            linkedMemberId.isEmpty);
     if (canAttemptAutoLink) {
       final autoLinked = await AppDataService.instance.tryAutoLinkOnLogin(
         userUid: user.uid,
@@ -128,11 +136,12 @@ class AuthService {
         id: user.uid,
         name: resolvedName.isEmpty ? 'Usuario' : resolvedName,
         lastName: resolvedLastName,
+        alias: resolvedAlias,
         role: resolvedRole == UserRole.admin.name
             ? UserRole.admin
             : resolvedRole == UserRole.gestor.name
-                ? UserRole.gestor
-                : UserRole.user,
+            ? UserRole.gestor
+            : UserRole.user,
       ),
     );
   }
@@ -145,17 +154,52 @@ class AuthService {
   Future<void> updateCurrentUserProfile({
     required String name,
     required String lastName,
+    String? alias,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('No hay un usuario autenticado.');
     }
 
-    await _firestore.collection('users').doc(user.uid).set({
+    final userRef = _firestore.collection('users').doc(user.uid);
+    final userSnap = await userRef.get();
+    final userData = userSnap.data() ?? const <String, dynamic>{};
+
+    final linkedTeamId = (userData['linkedTeamId'] as String?)?.trim();
+    final linkedMemberId = (userData['linkedMemberId'] as String?)?.trim();
+    final trimmedAlias = alias?.trim();
+
+    final batch = _firestore.batch();
+    final userPayload = <String, dynamic>{
       'name': name.trim(),
       'lastName': lastName.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+    if (trimmedAlias != null) {
+      userPayload['alias'] = trimmedAlias;
+    }
+    batch.set(userRef, userPayload, SetOptions(merge: true));
+
+    if (linkedTeamId != null &&
+        linkedTeamId.isNotEmpty &&
+        linkedMemberId != null &&
+        linkedMemberId.isNotEmpty) {
+      final memberRef = _firestore
+          .collection('teams')
+          .doc(linkedTeamId)
+          .collection('members')
+          .doc(linkedMemberId);
+      final memberPayload = <String, dynamic>{
+        'name': name.trim(),
+        'lastName': lastName.trim(),
+      };
+      if (trimmedAlias != null) {
+        memberPayload['alias'] = trimmedAlias;
+      }
+      batch.set(memberRef, memberPayload, SetOptions(merge: true));
+    }
+
+    await batch.commit();
   }
 
   Future<void> signOut() => _auth.signOut();

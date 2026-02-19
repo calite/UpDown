@@ -57,7 +57,10 @@ class AppDataService {
     final autoApproveTeams = await _teamsRef
         .where('settings.autoApproveJoinRequests', isEqualTo: true)
         .get();
-    final matches = <({String teamId, DocumentReference<Map<String, dynamic>> memberRef})>[];
+    final matches =
+        <
+          ({String teamId, DocumentReference<Map<String, dynamic>> memberRef})
+        >[];
 
     for (final teamDoc in autoApproveTeams.docs) {
       final membersSnap = await teamDoc.reference.collection('members').get();
@@ -65,8 +68,8 @@ class AppDataService {
         final data = memberDoc.data();
         final memberEmailLower =
             ((data['emailLower'] as String?)?.trim().isNotEmpty ?? false)
-                ? (data['emailLower'] as String).trim()
-                : ((data['email'] as String?)?.trim().toLowerCase() ?? '');
+            ? (data['emailLower'] as String).trim()
+            : ((data['email'] as String?)?.trim().toLowerCase() ?? '');
         final authUid = (data['authUid'] as String?)?.trim() ?? '';
         final canClaim = authUid.isEmpty || authUid == userUid;
         if (memberEmailLower == emailLower && canClaim) {
@@ -86,29 +89,22 @@ class AppDataService {
         nextLinkedTeamId: onlyTeam.id,
         nextLinkedMemberId: memberRef.id,
       );
-      batch.set(
-        memberRef,
-        {
-          'id': memberRef.id,
-          'name': name.trim().isEmpty ? email.trim() : name.trim(),
-          'lastName': lastName.trim(),
-          'email': email.trim(),
-          'emailLower': emailLower,
-          'authUid': userUid,
-          'role': UserRole.user.name,
-        },
-        SetOptions(merge: true),
-      );
-      batch.set(
-        _usersRef.doc(userUid),
-        {
-          'linkedTeamId': onlyTeam.id,
-          'linkedMemberId': memberRef.id,
-          'linkStatus': 'linked',
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      batch.set(memberRef, {
+        'id': memberRef.id,
+        'name': name.trim().isEmpty ? email.trim() : name.trim(),
+        'lastName': lastName.trim(),
+        'alias': ((userData['alias'] as String?) ?? '').trim(),
+        'email': email.trim(),
+        'emailLower': emailLower,
+        'authUid': userUid,
+        'role': UserRole.user.name,
+      }, SetOptions(merge: true));
+      batch.set(_usersRef.doc(userUid), {
+        'linkedTeamId': onlyTeam.id,
+        'linkedMemberId': memberRef.id,
+        'linkStatus': 'linked',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
       await _appendClearDuplicateUserLinksToBatch(
         batch: batch,
         userUid: userUid,
@@ -132,27 +128,20 @@ class AppDataService {
       nextLinkedTeamId: target.teamId,
       nextLinkedMemberId: target.memberRef.id,
     );
-    batch.set(
-      target.memberRef,
-      {
-        'authUid': userUid,
-        'email': email.trim(),
-        'emailLower': emailLower,
-        'name': name.trim().isEmpty ? email.trim() : name.trim(),
-        'lastName': lastName.trim(),
-      },
-      SetOptions(merge: true),
-    );
-    batch.set(
-      _usersRef.doc(userUid),
-      {
-        'linkedTeamId': target.teamId,
-        'linkedMemberId': target.memberRef.id,
-        'linkStatus': 'linked',
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    batch.set(target.memberRef, {
+      'authUid': userUid,
+      'email': email.trim(),
+      'emailLower': emailLower,
+      'name': name.trim().isEmpty ? email.trim() : name.trim(),
+      'lastName': lastName.trim(),
+      'alias': ((userData['alias'] as String?) ?? '').trim(),
+    }, SetOptions(merge: true));
+    batch.set(_usersRef.doc(userUid), {
+      'linkedTeamId': target.teamId,
+      'linkedMemberId': target.memberRef.id,
+      'linkStatus': 'linked',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
     await _appendClearDuplicateUserLinksToBatch(
       batch: batch,
       userUid: userUid,
@@ -200,7 +189,10 @@ class AppDataService {
 
     for (final team in teams) {
       final teamRef = _teamsRef.doc(team.id);
-      await teamRef.set(team.toMap(includeMembers: false), SetOptions(merge: true));
+      await teamRef.set(
+        team.toMap(includeMembers: false),
+        SetOptions(merge: true),
+      );
 
       final membersRef = teamRef.collection('members');
       final existingMembers = await membersRef.get();
@@ -213,7 +205,9 @@ class AppDataService {
       }
 
       for (final member in team.members) {
-        await membersRef.doc(member.id).set(member.toMap(), SetOptions(merge: true));
+        await membersRef
+            .doc(member.id)
+            .set(member.toMap(), SetOptions(merge: true));
       }
     }
 
@@ -227,18 +221,16 @@ class AppDataService {
     }
 
     for (final suggestion in suggestions) {
-      await _suggestionsRef.doc(suggestion.id).set(
-            suggestion.toMap(),
-            SetOptions(merge: true),
-          );
+      await _suggestionsRef
+          .doc(suggestion.id)
+          .set(suggestion.toMap(), SetOptions(merge: true));
     }
   }
 
   Future<void> addSuggestion(Suggestion suggestion) async {
-    await _suggestionsRef.doc(suggestion.id).set(
-          suggestion.toMap(),
-          SetOptions(merge: true),
-        );
+    await _suggestionsRef
+        .doc(suggestion.id)
+        .set(suggestion.toMap(), SetOptions(merge: true));
   }
 
   Future<void> deleteSuggestion(String suggestionId) async {
@@ -258,15 +250,11 @@ class AppDataService {
       if (approved || rejected) {
         throw Exception('La sugerencia ya fue procesada.');
       }
-      tx.set(
-        ref,
-        {
-          'approved': true,
-          'rejected': false,
-          'reviewedAt': DateTime.now().toIso8601String(),
-        },
-        SetOptions(merge: true),
-      );
+      tx.set(ref, {
+        'approved': true,
+        'rejected': false,
+        'reviewedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
     });
   }
 
@@ -283,15 +271,11 @@ class AppDataService {
       if (approved || rejected) {
         throw Exception('La sugerencia ya fue procesada.');
       }
-      tx.set(
-        ref,
-        {
-          'approved': false,
-          'rejected': true,
-          'reviewedAt': DateTime.now().toIso8601String(),
-        },
-        SetOptions(merge: true),
-      );
+      tx.set(ref, {
+        'approved': false,
+        'rejected': true,
+        'reviewedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
     });
   }
 
@@ -317,41 +301,30 @@ class AppDataService {
 
       final action = suggestion.isPositive ? 'positivo' : 'negativo';
       final memberHistoryItem = HistoryItem(
-        '$action para ${suggestion.to.displayName} (${suggestion.comment})',
+        '${suggestion.from.displayName} le dio un $action a ${suggestion.to.displayName}: '
+        '"${suggestion.comment}"',
         suggestion.date,
       );
       final teamHistoryItem = HistoryItem(
-        'APROBADA: ${memberHistoryItem.description} (por ${reviewer.displayName})',
+        'APROBADA: ${memberHistoryItem.description} (aprobada por ${reviewer.displayName})',
         DateTime.now(),
       );
 
-      tx.set(
-        memberRef,
-        {
-          if (suggestion.isPositive)
-            'positives': FieldValue.increment(1)
-          else
-            'negatives': FieldValue.increment(1),
-          'history': FieldValue.arrayUnion([memberHistoryItem.toMap()]),
-        },
-        SetOptions(merge: true),
-      );
-      tx.set(
-        teamRef,
-        {
-          'teamHistory': FieldValue.arrayUnion([teamHistoryItem.toMap()]),
-        },
-        SetOptions(merge: true),
-      );
-      tx.set(
-        suggestionRef,
-        {
-          'approved': true,
-          'rejected': false,
-          'reviewedAt': DateTime.now().toIso8601String(),
-        },
-        SetOptions(merge: true),
-      );
+      tx.set(memberRef, {
+        if (suggestion.isPositive)
+          'positives': FieldValue.increment(1)
+        else
+          'negatives': FieldValue.increment(1),
+        'history': FieldValue.arrayUnion([memberHistoryItem.toMap()]),
+      }, SetOptions(merge: true));
+      tx.set(teamRef, {
+        'teamHistory': FieldValue.arrayUnion([teamHistoryItem.toMap()]),
+      }, SetOptions(merge: true));
+      tx.set(suggestionRef, {
+        'approved': true,
+        'rejected': false,
+        'reviewedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
     });
   }
 
@@ -376,8 +349,8 @@ class AppDataService {
       }
 
       final description =
-          'SUGERENCIA RECHAZADA: ${suggestion.from.displayName} sugirio un '
-          '${suggestion.isPositive ? 'positivo' : 'negativo'} para '
+          'SUGERENCIA RECHAZADA: ${suggestion.from.displayName} propuso dar un '
+          '${suggestion.isPositive ? 'positivo' : 'negativo'} a '
           '${suggestion.to.displayName}: "${suggestion.comment}"';
       final memberHistoryItem = HistoryItem(description, DateTime.now());
       final teamHistoryItem = HistoryItem(
@@ -385,39 +358,28 @@ class AppDataService {
         DateTime.now(),
       );
 
-      tx.set(
-        memberRef,
-        {
-          'history': FieldValue.arrayUnion([memberHistoryItem.toMap()]),
-        },
-        SetOptions(merge: true),
-      );
-      tx.set(
-        teamRef,
-        {
-          'teamHistory': FieldValue.arrayUnion([teamHistoryItem.toMap()]),
-        },
-        SetOptions(merge: true),
-      );
-      tx.set(
-        suggestionRef,
-        {
-          'approved': false,
-          'rejected': true,
-          'reviewedAt': DateTime.now().toIso8601String(),
-        },
-        SetOptions(merge: true),
-      );
+      tx.set(memberRef, {
+        'history': FieldValue.arrayUnion([memberHistoryItem.toMap()]),
+      }, SetOptions(merge: true));
+      tx.set(teamRef, {
+        'teamHistory': FieldValue.arrayUnion([teamHistoryItem.toMap()]),
+      }, SetOptions(merge: true));
+      tx.set(suggestionRef, {
+        'approved': false,
+        'rejected': true,
+        'reviewedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
     });
   }
 
   Future<List<LinkRequest>> getPendingLinkRequests() async {
     final docs = await _linkRequestsRef.get();
-    final requests = docs.docs
-        .map((doc) => LinkRequest.fromMap(doc.id, doc.data()))
-        .where((r) => r.status == LinkRequestStatus.pending)
-        .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final requests =
+        docs.docs
+            .map((doc) => LinkRequest.fromMap(doc.id, doc.data()))
+            .where((r) => r.status == LinkRequestStatus.pending)
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return requests;
   }
 
@@ -442,7 +404,12 @@ class AppDataService {
     final userSnap = await _usersRef.doc(userId).get();
     final userData = userSnap.data() ?? <String, dynamic>{};
     final currentLinkedTeamId = (userData['linkedTeamId'] as String?)?.trim();
-    final currentLinkedMemberId = (userData['linkedMemberId'] as String?)?.trim();
+    final currentLinkedMemberId = (userData['linkedMemberId'] as String?)
+        ?.trim();
+    final previousScores = await _readMemberScores(
+      teamId: currentLinkedTeamId,
+      memberId: currentLinkedMemberId,
+    );
 
     final teamSnap = await _teamsRef.doc(team.id).get();
     final teamData = teamSnap.data() ?? <String, dynamic>{};
@@ -454,11 +421,15 @@ class AppDataService {
 
     final emailLower = email.toLowerCase().trim();
     if (settings.autoApproveJoinRequests) {
-      final membersSnap = await _teamsRef.doc(team.id).collection('members').get();
+      final membersSnap = await _teamsRef
+          .doc(team.id)
+          .collection('members')
+          .get();
 
       final matches = membersSnap.docs.where((doc) {
         final data = doc.data();
-        final candidateEmail = ((data['emailLower'] as String?)?.trim().isNotEmpty ?? false)
+        final candidateEmail =
+            ((data['emailLower'] as String?)?.trim().isNotEmpty ?? false)
             ? (data['emailLower'] as String).trim()
             : ((data['email'] as String?)?.trim().toLowerCase() ?? '');
         return candidateEmail == emailLower;
@@ -474,7 +445,8 @@ class AppDataService {
         if ((authUid?.isNotEmpty ?? false) && authUid != userId) {
           // Integrante ya vinculado a otro usuario: requiere revision manual.
         } else {
-          final isTeamMove = currentLinkedTeamId != null &&
+          final isTeamMove =
+              currentLinkedTeamId != null &&
               currentLinkedTeamId.isNotEmpty &&
               currentLinkedTeamId != team.id;
           memberRef = matches.first.reference;
@@ -488,46 +460,36 @@ class AppDataService {
             nextLinkedTeamId: team.id,
             nextLinkedMemberId: memberRef.id,
           );
-          batch.set(
-            memberRef,
-            {
-              'authUid': userId,
-              'email': email.trim(),
-              'emailLower': emailLower,
-              if (isTeamMove) 'positives': 0,
-              if (isTeamMove) 'negatives': 0,
-            },
-            SetOptions(merge: true),
-          );
-          batch.set(
-            _usersRef.doc(userId),
-            {
-              'linkedTeamId': team.id,
-              'linkedMemberId': memberRef.id,
-              'linkStatus': 'linked',
-              'updatedAt': FieldValue.serverTimestamp(),
-            },
-            SetOptions(merge: true),
-          );
-          batch.set(
-            _linkRequestsRef.doc(_nextId()),
-            {
-              'userId': userId,
-              'email': email.trim(),
-              'name': name,
-              'lastName': lastName,
-              'teamId': team.id,
-              'teamName': team.name,
-              'note': note.trim(),
-              'status': LinkRequestStatus.approved.name,
-              'createdAt': DateTime.now().toIso8601String(),
-              'reviewedAt': DateTime.now().toIso8601String(),
-              'reviewedByUid': 'system',
-              'reviewComment': 'Autoaprobada por configuracion del equipo',
-              'memberId': memberRef.id,
-              'memberName': memberName,
-            },
-          );
+          batch.set(memberRef, {
+            'authUid': userId,
+            'alias': ((userData['alias'] as String?) ?? '').trim(),
+            'email': email.trim(),
+            'emailLower': emailLower,
+            if (isTeamMove) 'positives': previousScores.positives,
+            if (isTeamMove) 'negatives': previousScores.negatives,
+          }, SetOptions(merge: true));
+          batch.set(_usersRef.doc(userId), {
+            'linkedTeamId': team.id,
+            'linkedMemberId': memberRef.id,
+            'linkStatus': 'linked',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          batch.set(_linkRequestsRef.doc(_nextId()), {
+            'userId': userId,
+            'email': email.trim(),
+            'name': name,
+            'lastName': lastName,
+            'teamId': team.id,
+            'teamName': team.name,
+            'note': note.trim(),
+            'status': LinkRequestStatus.approved.name,
+            'createdAt': DateTime.now().toIso8601String(),
+            'reviewedAt': DateTime.now().toIso8601String(),
+            'reviewedByUid': 'system',
+            'reviewComment': 'Autoaprobada por configuracion del equipo',
+            'memberId': memberRef.id,
+            'memberName': memberName,
+          });
           await _appendClearDuplicateUserLinksToBatch(
             batch: batch,
             userUid: userId,
@@ -543,9 +505,12 @@ class AppDataService {
           id: memberRef.id,
           name: name.trim().isEmpty ? 'Usuario' : name.trim(),
           lastName: lastName.trim(),
+          alias: ((userData['alias'] as String?) ?? '').trim(),
           email: email.trim(),
           emailLower: emailLower,
           authUid: userId,
+          positives: previousScores.positives,
+          negatives: previousScores.negatives,
           role: UserRole.user,
         );
         memberName = newMember.displayName;
@@ -559,35 +524,28 @@ class AppDataService {
           nextLinkedMemberId: memberRef.id,
         );
         batch.set(memberRef, newMember.toMap(), SetOptions(merge: true));
-        batch.set(
-          _usersRef.doc(userId),
-          {
-            'linkedTeamId': team.id,
-            'linkedMemberId': memberRef.id,
-            'linkStatus': 'linked',
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-        batch.set(
-          _linkRequestsRef.doc(_nextId()),
-          {
-            'userId': userId,
-            'email': email.trim(),
-            'name': name,
-            'lastName': lastName,
-            'teamId': team.id,
-            'teamName': team.name,
-            'note': note.trim(),
-            'status': LinkRequestStatus.approved.name,
-            'createdAt': DateTime.now().toIso8601String(),
-            'reviewedAt': DateTime.now().toIso8601String(),
-            'reviewedByUid': 'system',
-            'reviewComment': 'Autoaprobada por configuracion del equipo',
-            'memberId': memberRef.id,
-            'memberName': memberName,
-          },
-        );
+        batch.set(_usersRef.doc(userId), {
+          'linkedTeamId': team.id,
+          'linkedMemberId': memberRef.id,
+          'linkStatus': 'linked',
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        batch.set(_linkRequestsRef.doc(_nextId()), {
+          'userId': userId,
+          'email': email.trim(),
+          'name': name,
+          'lastName': lastName,
+          'teamId': team.id,
+          'teamName': team.name,
+          'note': note.trim(),
+          'status': LinkRequestStatus.approved.name,
+          'createdAt': DateTime.now().toIso8601String(),
+          'reviewedAt': DateTime.now().toIso8601String(),
+          'reviewedByUid': 'system',
+          'reviewComment': 'Autoaprobada por configuracion del equipo',
+          'memberId': memberRef.id,
+          'memberName': memberName,
+        });
         await _appendClearDuplicateUserLinksToBatch(
           batch: batch,
           userUid: userId,
@@ -674,9 +632,26 @@ class AppDataService {
       final memberSnap = await tx.get(memberRef);
       final userData = userSnap.data() ?? const <String, dynamic>{};
       final currentLinkedTeamId = (userData['linkedTeamId'] as String?)?.trim();
-      final isTeamMove = currentLinkedTeamId != null &&
+      final isTeamMove =
+          currentLinkedTeamId != null &&
           currentLinkedTeamId.isNotEmpty &&
           currentLinkedTeamId != team.id;
+      final currentLinkedMemberId = (userData['linkedMemberId'] as String?)
+          ?.trim();
+      var movedPositives = 0;
+      var movedNegatives = 0;
+      if (isTeamMove &&
+          currentLinkedMemberId != null &&
+          currentLinkedMemberId.isNotEmpty) {
+        final oldMemberRef = _teamsRef
+            .doc(currentLinkedTeamId)
+            .collection('members')
+            .doc(currentLinkedMemberId);
+        final oldMemberSnap = await tx.get(oldMemberRef);
+        final oldMemberData = oldMemberSnap.data() ?? const <String, dynamic>{};
+        movedPositives = (oldMemberData['positives'] as num?)?.toInt() ?? 0;
+        movedNegatives = (oldMemberData['negatives'] as num?)?.toInt() ?? 0;
+      }
       String memberName;
       Map<String, dynamic> memberData;
 
@@ -694,6 +669,8 @@ class AppDataService {
           email: request.email,
           emailLower: request.email.toLowerCase(),
           authUid: request.userId,
+          positives: movedPositives,
+          negatives: movedNegatives,
           role: UserRole.user,
         );
         memberName = member.displayName;
@@ -712,8 +689,8 @@ class AppDataService {
         existing.email = request.email;
         existing.emailLower = request.email.toLowerCase();
         if (isTeamMove) {
-          existing.positives = 0;
-          existing.negatives = 0;
+          existing.positives = movedPositives;
+          existing.negatives = movedNegatives;
         }
         memberName = existing.displayName;
         memberData = existing.toMap();
@@ -750,11 +727,83 @@ class AppDataService {
 
   Future<List<AppUserRecord>> getUsers() async {
     final docs = await _usersRef.get();
-    final users = docs.docs
-        .map((doc) => AppUserRecord.fromMap(doc.id, doc.data()))
-        .toList()
-      ..sort((a, b) => a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase()));
+    final users =
+        docs.docs
+            .map((doc) => AppUserRecord.fromMap(doc.id, doc.data()))
+            .toList()
+          ..sort(
+            (a, b) => a.displayName.toLowerCase().compareTo(
+              b.displayName.toLowerCase(),
+            ),
+          );
     return users;
+  }
+
+  Future<void> updateUserBasicData({
+    required String userUid,
+    required String name,
+    required String lastName,
+    required String alias,
+    required String email,
+    required bool canEditEmail,
+  }) async {
+    final userRef = _usersRef.doc(userUid);
+    final userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      throw Exception('Usuario no encontrado.');
+    }
+    final user = AppUserRecord.fromMap(userSnap.id, userSnap.data()!);
+
+    final resolvedName = name.trim();
+    final resolvedLastName = lastName.trim();
+    final resolvedAlias = alias.trim();
+    final resolvedEmail = email.trim();
+    if (resolvedName.isEmpty) {
+      throw Exception('El nombre es obligatorio.');
+    }
+    if (resolvedEmail.isEmpty) {
+      throw Exception('El email es obligatorio.');
+    }
+
+    final emailChanged =
+        resolvedEmail.toLowerCase() != user.email.trim().toLowerCase();
+    if (emailChanged && !canEditEmail) {
+      throw Exception(
+        'No se puede editar el email: el integrante vinculado ya tiene un usuario asociado.',
+      );
+    }
+
+    final batch = _firestore.batch();
+    batch.set(userRef, {
+      'name': resolvedName,
+      'lastName': resolvedLastName,
+      'alias': resolvedAlias,
+      if (emailChanged) 'email': resolvedEmail,
+      if (emailChanged) 'emailLower': resolvedEmail.toLowerCase(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    final linkedTeamId = user.linkedTeamId?.trim();
+    final linkedMemberId = user.linkedMemberId?.trim();
+    if (linkedTeamId != null &&
+        linkedTeamId.isNotEmpty &&
+        linkedMemberId != null &&
+        linkedMemberId.isNotEmpty) {
+      final linkedMemberRef = _teamsRef
+          .doc(linkedTeamId)
+          .collection('members')
+          .doc(linkedMemberId);
+      batch.set(linkedMemberRef, {
+        'name': resolvedName,
+        'lastName': resolvedLastName,
+        'alias': resolvedAlias,
+        if (emailChanged && canEditEmail) 'email': resolvedEmail,
+        if (emailChanged && canEditEmail)
+          'emailLower': resolvedEmail.toLowerCase(),
+      }, SetOptions(merge: true));
+    }
+
+    await batch.commit();
   }
 
   Future<void> deleteUserRecord({
@@ -771,25 +820,22 @@ class AppDataService {
     final batch = _firestore.batch();
     final deletedMemberPaths = <String>{};
     final teamHistoryAddedFor = <String>{};
-    if ((user.linkedTeamId ?? '').isNotEmpty && (user.linkedMemberId ?? '').isNotEmpty) {
+    if ((user.linkedTeamId ?? '').isNotEmpty &&
+        (user.linkedMemberId ?? '').isNotEmpty) {
       final memberRef = _teamsRef
           .doc(user.linkedTeamId!)
           .collection('members')
           .doc(user.linkedMemberId!);
       deletedMemberPaths.add(memberRef.path);
       if (!teamHistoryAddedFor.contains(user.linkedTeamId)) {
-        batch.set(
-          _teamsRef.doc(user.linkedTeamId!),
-          {
-            'teamHistory': FieldValue.arrayUnion([
-              HistoryItem(
-                '${user.displayName} fue eliminado del equipo por $actorDisplayName',
-                DateTime.now(),
-              ).toMap(),
-            ]),
-          },
-          SetOptions(merge: true),
-        );
+        batch.set(_teamsRef.doc(user.linkedTeamId!), {
+          'teamHistory': FieldValue.arrayUnion([
+            HistoryItem(
+              '${user.displayName} fue eliminado del equipo por $actorDisplayName',
+              DateTime.now(),
+            ).toMap(),
+          ]),
+        }, SetOptions(merge: true));
         teamHistoryAddedFor.add(user.linkedTeamId!);
       }
       batch.delete(memberRef);
@@ -802,24 +848,22 @@ class AppDataService {
       }
       deletedMemberPaths.add(linked.memberRef.path);
       if (!teamHistoryAddedFor.contains(linked.teamId)) {
-        batch.set(
-          _teamsRef.doc(linked.teamId),
-          {
-            'teamHistory': FieldValue.arrayUnion([
-              HistoryItem(
-                '${linked.memberDisplayName} fue eliminado del equipo por $actorDisplayName',
-                DateTime.now(),
-              ).toMap(),
-            ]),
-          },
-          SetOptions(merge: true),
-        );
+        batch.set(_teamsRef.doc(linked.teamId), {
+          'teamHistory': FieldValue.arrayUnion([
+            HistoryItem(
+              '${linked.memberDisplayName} fue eliminado del equipo por $actorDisplayName',
+              DateTime.now(),
+            ).toMap(),
+          ]),
+        }, SetOptions(merge: true));
         teamHistoryAddedFor.add(linked.teamId);
       }
       batch.delete(linked.memberRef);
     }
 
-    final userRequests = await _linkRequestsRef.where('userId', isEqualTo: userUid).get();
+    final userRequests = await _linkRequestsRef
+        .where('userId', isEqualTo: userUid)
+        .get();
     for (final requestDoc in userRequests.docs) {
       batch.delete(requestDoc.reference);
     }
@@ -845,30 +889,24 @@ class AppDataService {
     if (requestedLinkedTeamId == null || requestedLinkedTeamId.isEmpty) {
       resolvedLinkedTeamId = null;
     }
-    if (role == UserRole.admin) {
-      resolvedLinkedTeamId = null;
-    }
     if (role == UserRole.gestor) {
       if (resolvedLinkedTeamId == null || resolvedLinkedTeamId.isEmpty) {
         throw Exception('Un gestor debe tener equipo asignado.');
       }
     }
-    final shouldClearLinkedMember = user.linkedMemberId != null &&
+    final shouldClearLinkedMember =
+        user.linkedMemberId != null &&
         user.linkedMemberId!.isNotEmpty &&
         (user.linkedTeamId != resolvedLinkedTeamId || role == UserRole.admin);
 
     final batch = _firestore.batch();
-    batch.set(
-      userRef,
-      {
-        'role': role.name,
-        'linkedTeamId': resolvedLinkedTeamId,
-        if (shouldClearLinkedMember) 'linkedMemberId': null,
-        if (shouldClearLinkedMember) 'linkStatus': 'unlinked',
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    batch.set(userRef, {
+      'role': role.name,
+      'linkedTeamId': resolvedLinkedTeamId,
+      if (shouldClearLinkedMember) 'linkedMemberId': null,
+      if (shouldClearLinkedMember) 'linkStatus': 'unlinked',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     final teamId = user.linkedTeamId;
     final memberId = user.linkedMemberId;
@@ -877,16 +915,15 @@ class AppDataService {
         teamId.isNotEmpty &&
         memberId != null &&
         memberId.isNotEmpty) {
-      final oldMemberRef = _teamsRef.doc(teamId).collection('members').doc(memberId);
-      batch.set(
-        oldMemberRef,
-        {
-          'authUid': null,
-          'positives': 0,
-          'negatives': 0,
-        },
-        SetOptions(merge: true),
-      );
+      final oldMemberRef = _teamsRef
+          .doc(teamId)
+          .collection('members')
+          .doc(memberId);
+      batch.set(oldMemberRef, {
+        'authUid': null,
+        'positives': 0,
+        'negatives': 0,
+      }, SetOptions(merge: true));
     }
 
     final effectiveTeamId = shouldClearLinkedMember ? null : teamId;
@@ -899,11 +936,7 @@ class AppDataService {
           .doc(effectiveTeamId)
           .collection('members')
           .doc(effectiveMemberId);
-      batch.set(
-        memberRef,
-        {'role': role.name},
-        SetOptions(merge: true),
-      );
+      batch.set(memberRef, {'role': role.name}, SetOptions(merge: true));
     }
 
     await batch.commit();
@@ -912,6 +945,11 @@ class AppDataService {
   Future<void> updateUserTeamAssociation({
     required String userUid,
     required String? linkedTeamId,
+    String? forcedMemberId,
+    bool forceCreateNewMember = false,
+    String? newMemberName,
+    String? newMemberLastName,
+    String? newMemberAlias,
   }) async {
     final userRef = _usersRef.doc(userUid);
     final userSnap = await userRef.get();
@@ -925,48 +963,50 @@ class AppDataService {
     if (requestedLinkedTeamId == null || requestedLinkedTeamId.isEmpty) {
       resolvedLinkedTeamId = null;
     }
-    if (user.role == UserRole.admin) {
-      throw Exception('Los administradores no se asocian a equipos.');
-    }
     if (user.role == UserRole.gestor &&
         (resolvedLinkedTeamId == null || resolvedLinkedTeamId.isEmpty)) {
       throw Exception('Un gestor debe tener equipo asignado.');
     }
 
-    final hadLinkedMember = user.linkedMemberId != null && user.linkedMemberId!.isNotEmpty;
-    final hadLinkedTeam = user.linkedTeamId != null && user.linkedTeamId!.isNotEmpty;
+    final hadLinkedMember =
+        user.linkedMemberId != null && user.linkedMemberId!.isNotEmpty;
+    final hadLinkedTeam =
+        user.linkedTeamId != null && user.linkedTeamId!.isNotEmpty;
 
     final batch = _firestore.batch();
 
     final oldTeamId = user.linkedTeamId;
     final oldMemberId = user.linkedMemberId;
+    final movingFromOtherTeam =
+        hadLinkedTeam &&
+        oldTeamId != null &&
+        oldTeamId.isNotEmpty &&
+        oldTeamId != resolvedLinkedTeamId;
+    final previousScores = movingFromOtherTeam
+        ? await _readMemberScores(teamId: oldTeamId, memberId: oldMemberId)
+        : (positives: 0, negatives: 0);
     if (resolvedLinkedTeamId == null || resolvedLinkedTeamId.isEmpty) {
-      batch.set(
-        userRef,
-        {
-          'linkedTeamId': null,
-          'linkedMemberId': null,
-          'linkStatus': 'unlinked',
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+      batch.set(userRef, {
+        'linkedTeamId': null,
+        'linkedMemberId': null,
+        'linkStatus': 'unlinked',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
       if (hadLinkedMember &&
           hadLinkedTeam &&
           oldTeamId != null &&
           oldTeamId.isNotEmpty &&
           oldMemberId != null &&
           oldMemberId.isNotEmpty) {
-        final oldMemberRef = _teamsRef.doc(oldTeamId).collection('members').doc(oldMemberId);
-        batch.set(
-          oldMemberRef,
-          {
-            'authUid': null,
-            'positives': 0,
-            'negatives': 0,
-          },
-          SetOptions(merge: true),
-        );
+        final oldMemberRef = _teamsRef
+            .doc(oldTeamId)
+            .collection('members')
+            .doc(oldMemberId);
+        batch.set(oldMemberRef, {
+          'authUid': null,
+          'positives': 0,
+          'negatives': 0,
+        }, SetOptions(merge: true));
       }
       await batch.commit();
       return;
@@ -976,7 +1016,23 @@ class AppDataService {
     final targetMembersRef = targetTeamRef.collection('members');
 
     DocumentReference<Map<String, dynamic>>? targetMemberRef;
-    if (user.linkedTeamId == resolvedLinkedTeamId &&
+    final requestedForcedMemberId = forcedMemberId?.trim();
+    if (requestedForcedMemberId != null && requestedForcedMemberId.isNotEmpty) {
+      targetMemberRef = targetMembersRef.doc(requestedForcedMemberId);
+      final forcedSnap = await targetMemberRef.get();
+      if (!forcedSnap.exists) {
+        throw Exception('El integrante seleccionado no existe.');
+      }
+      final forcedData = forcedSnap.data() ?? const <String, dynamic>{};
+      final forcedAuthUid = (forcedData['authUid'] as String?)?.trim() ?? '';
+      if (forcedAuthUid.isNotEmpty && forcedAuthUid != user.uid) {
+        throw Exception(
+          'El integrante seleccionado ya esta asociado a otro usuario.',
+        );
+      }
+    } else if (forceCreateNewMember) {
+      targetMemberRef = targetMembersRef.doc(_nextId());
+    } else if (user.linkedTeamId == resolvedLinkedTeamId &&
         hadLinkedMember &&
         oldMemberId != null &&
         oldMemberId.isNotEmpty) {
@@ -993,7 +1049,8 @@ class AppDataService {
         final emailLower = user.email.trim().toLowerCase();
         for (final doc in allMembers.docs) {
           final data = doc.data();
-          final docEmailLower = ((data['emailLower'] as String?)?.trim().isNotEmpty ?? false)
+          final docEmailLower =
+              ((data['emailLower'] as String?)?.trim().isNotEmpty ?? false)
               ? (data['emailLower'] as String).trim()
               : ((data['email'] as String?)?.trim().toLowerCase() ?? '');
           final authUid = (data['authUid'] as String?)?.trim() ?? '';
@@ -1007,72 +1064,70 @@ class AppDataService {
     }
 
     targetMemberRef ??= targetMembersRef.doc(_nextId());
-    final movingFromOtherTeam = hadLinkedTeam &&
-        oldTeamId != null &&
-        oldTeamId.isNotEmpty &&
-        oldTeamId != resolvedLinkedTeamId;
-
     if (hadLinkedMember &&
         hadLinkedTeam &&
         oldTeamId != null &&
         oldTeamId.isNotEmpty &&
         oldMemberId != null &&
         oldMemberId.isNotEmpty &&
-        !(oldTeamId == resolvedLinkedTeamId && oldMemberId == targetMemberRef.id)) {
-      final oldMemberRef = _teamsRef.doc(oldTeamId).collection('members').doc(oldMemberId);
-      batch.set(
-        oldMemberRef,
-        {
-          'authUid': null,
-          'positives': 0,
-          'negatives': 0,
-        },
-        SetOptions(merge: true),
-      );
+        !(oldTeamId == resolvedLinkedTeamId &&
+            oldMemberId == targetMemberRef.id)) {
+      final oldMemberRef = _teamsRef
+          .doc(oldTeamId)
+          .collection('members')
+          .doc(oldMemberId);
+      batch.set(oldMemberRef, {
+        'authUid': null,
+        'positives': 0,
+        'negatives': 0,
+      }, SetOptions(merge: true));
     }
 
-    batch.set(
-      targetMemberRef,
-      {
-        'id': targetMemberRef.id,
-        'name': user.name.trim().isEmpty ? user.email : user.name.trim(),
-        'lastName': user.lastName.trim(),
-        'email': user.email.trim(),
-        'emailLower': user.email.trim().toLowerCase(),
-        'authUid': user.uid,
-        'role': user.role.name,
-        if (movingFromOtherTeam) 'positives': 0,
-        if (movingFromOtherTeam) 'negatives': 0,
-      },
-      SetOptions(merge: true),
-    );
-    batch.set(
-      userRef,
-      {
-        'linkedTeamId': resolvedLinkedTeamId,
-        'linkedMemberId': targetMemberRef.id,
-        'linkStatus': 'linked',
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    final creatingNewMember =
+        forceCreateNewMember && requestedForcedMemberId == null;
+    final resolvedName = (newMemberName ?? '').trim().isEmpty
+        ? (user.name.trim().isEmpty ? user.email : user.name.trim())
+        : newMemberName!.trim();
+    final resolvedLastName = (newMemberLastName ?? '').trim().isEmpty
+        ? user.lastName.trim()
+        : newMemberLastName!.trim();
+    final resolvedAlias = (newMemberAlias ?? '').trim().isEmpty
+        ? user.alias.trim()
+        : newMemberAlias!.trim();
+
+    batch.set(targetMemberRef, {
+      'id': targetMemberRef.id,
+      'name': resolvedName,
+      'lastName': resolvedLastName,
+      'alias': resolvedAlias,
+      'email': user.email.trim(),
+      'emailLower': user.email.trim().toLowerCase(),
+      'authUid': user.uid,
+      'role': user.role.name,
+      if (creatingNewMember) 'isActive': true,
+      if (movingFromOtherTeam) 'positives': previousScores.positives,
+      if (movingFromOtherTeam) 'negatives': previousScores.negatives,
+    }, SetOptions(merge: true));
+    batch.set(userRef, {
+      'linkedTeamId': resolvedLinkedTeamId,
+      'linkedMemberId': targetMemberRef.id,
+      'linkStatus': 'linked',
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     final linkedMembers = await _findLinkedMemberDocsForUser(user.uid);
     for (final linkedDoc in linkedMembers) {
       final sameTarget =
-          linkedDoc.teamId == resolvedLinkedTeamId && linkedDoc.memberRef.id == targetMemberRef.id;
+          linkedDoc.teamId == resolvedLinkedTeamId &&
+          linkedDoc.memberRef.id == targetMemberRef.id;
       if (sameTarget) {
         continue;
       }
-      batch.set(
-        linkedDoc.memberRef,
-        {
-          'authUid': null,
-          'positives': 0,
-          'negatives': 0,
-        },
-        SetOptions(merge: true),
-      );
+      batch.set(linkedDoc.memberRef, {
+        'authUid': null,
+        'positives': 0,
+        'negatives': 0,
+      }, SetOptions(merge: true));
     }
 
     await batch.commit();
@@ -1108,7 +1163,10 @@ class AppDataService {
     return source.map((team) => Team.fromMap(team.toMap())).toList();
   }
 
-  List<Suggestion> _cloneSuggestions(List<Suggestion> source, List<Team> teams) {
+  List<Suggestion> _cloneSuggestions(
+    List<Suggestion> source,
+    List<Team> teams,
+  ) {
     return source
         .map((suggestion) {
           final team = teams
@@ -1118,9 +1176,10 @@ class AppDataService {
             return null;
           }
 
-          final fromMember = team.members
-              .where((m) => m.name == suggestion.from.name)
-              .firstOrNull ??
+          final fromMember =
+              team.members
+                  .where((m) => m.name == suggestion.from.name)
+                  .firstOrNull ??
               suggestion.from;
           final toMember = team.members
               .where((m) => m.name == suggestion.to.name)
@@ -1163,7 +1222,8 @@ class AppDataService {
         currentLinkedMemberId.isEmpty) {
       return;
     }
-    final isSameMember = currentLinkedTeamId == nextLinkedTeamId &&
+    final isSameMember =
+        currentLinkedTeamId == nextLinkedTeamId &&
         currentLinkedMemberId == nextLinkedMemberId;
     if (isSameMember) {
       return;
@@ -1172,15 +1232,11 @@ class AppDataService {
         .doc(currentLinkedTeamId)
         .collection('members')
         .doc(currentLinkedMemberId);
-    batch.set(
-      previousMemberRef,
-      {
-        'authUid': null,
-        'positives': 0,
-        'negatives': 0,
-      },
-      SetOptions(merge: true),
-    );
+    batch.set(previousMemberRef, {
+      'authUid': null,
+      'positives': 0,
+      'negatives': 0,
+    }, SetOptions(merge: true));
   }
 
   void _unlinkPreviousMemberInTransaction({
@@ -1190,14 +1246,16 @@ class AppDataService {
     required String nextLinkedMemberId,
   }) {
     final currentLinkedTeamId = (userData['linkedTeamId'] as String?)?.trim();
-    final currentLinkedMemberId = (userData['linkedMemberId'] as String?)?.trim();
+    final currentLinkedMemberId = (userData['linkedMemberId'] as String?)
+        ?.trim();
     if (currentLinkedTeamId == null ||
         currentLinkedTeamId.isEmpty ||
         currentLinkedMemberId == null ||
         currentLinkedMemberId.isEmpty) {
       return;
     }
-    final isSameMember = currentLinkedTeamId == nextLinkedTeamId &&
+    final isSameMember =
+        currentLinkedTeamId == nextLinkedTeamId &&
         currentLinkedMemberId == nextLinkedMemberId;
     if (isSameMember) {
       return;
@@ -1206,15 +1264,11 @@ class AppDataService {
         .doc(currentLinkedTeamId)
         .collection('members')
         .doc(currentLinkedMemberId);
-    tx.set(
-      previousMemberRef,
-      {
-        'authUid': null,
-        'positives': 0,
-        'negatives': 0,
-      },
-      SetOptions(merge: true),
-    );
+    tx.set(previousMemberRef, {
+      'authUid': null,
+      'positives': 0,
+      'negatives': 0,
+    }, SetOptions(merge: true));
   }
 
   Future<void> _appendClearDuplicateUserLinksToBatch({
@@ -1225,19 +1279,17 @@ class AppDataService {
   }) async {
     final linkedMembers = await _findLinkedMemberDocsForUser(userUid);
     for (final linkedDoc in linkedMembers) {
-      final isTarget = linkedDoc.teamId == keepTeamId && linkedDoc.memberRef.id == keepMemberId;
+      final isTarget =
+          linkedDoc.teamId == keepTeamId &&
+          linkedDoc.memberRef.id == keepMemberId;
       if (isTarget) {
         continue;
       }
-      batch.set(
-        linkedDoc.memberRef,
-        {
-          'authUid': null,
-          'positives': 0,
-          'negatives': 0,
-        },
-        SetOptions(merge: true),
-      );
+      batch.set(linkedDoc.memberRef, {
+        'authUid': null,
+        'positives': 0,
+        'negatives': 0,
+      }, SetOptions(merge: true));
     }
   }
 
@@ -1250,27 +1302,27 @@ class AppDataService {
     final batch = _firestore.batch();
     var hasChanges = false;
     for (final linkedDoc in linkedMembers) {
-      final isTarget = linkedDoc.teamId == keepTeamId && linkedDoc.memberRef.id == keepMemberId;
+      final isTarget =
+          linkedDoc.teamId == keepTeamId &&
+          linkedDoc.memberRef.id == keepMemberId;
       if (isTarget) {
         continue;
       }
       hasChanges = true;
-      batch.set(
-        linkedDoc.memberRef,
-        {
-          'authUid': null,
-          'positives': 0,
-          'negatives': 0,
-        },
-        SetOptions(merge: true),
-      );
+      batch.set(linkedDoc.memberRef, {
+        'authUid': null,
+        'positives': 0,
+        'negatives': 0,
+      }, SetOptions(merge: true));
     }
     if (hasChanges) {
       await batch.commit();
     }
   }
 
-  Future<List<_LinkedMemberRef>> _findLinkedMemberDocsForUser(String userUid) async {
+  Future<List<_LinkedMemberRef>> _findLinkedMemberDocsForUser(
+    String userUid,
+  ) async {
     final teamsSnap = await _teamsRef.get();
     final linked = <_LinkedMemberRef>[];
     for (final teamDoc in teamsSnap.docs) {
@@ -1290,6 +1342,28 @@ class AppDataService {
       }
     }
     return linked;
+  }
+
+  Future<({int positives, int negatives})> _readMemberScores({
+    required String? teamId,
+    required String? memberId,
+  }) async {
+    if (teamId == null ||
+        teamId.isEmpty ||
+        memberId == null ||
+        memberId.isEmpty) {
+      return (positives: 0, negatives: 0);
+    }
+    final snap = await _teamsRef
+        .doc(teamId)
+        .collection('members')
+        .doc(memberId)
+        .get();
+    final data = snap.data() ?? const <String, dynamic>{};
+    return (
+      positives: (data['positives'] as num?)?.toInt() ?? 0,
+      negatives: (data['negatives'] as num?)?.toInt() ?? 0,
+    );
   }
 }
 

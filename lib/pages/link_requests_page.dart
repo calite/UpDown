@@ -43,7 +43,8 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
       }
 
       final snapshot = await AppDataService.instance.loadOrSeed(canSeed: true);
-      final allRequests = await AppDataService.instance.getPendingLinkRequests();
+      final allRequests = await AppDataService.instance
+          .getPendingLinkRequests();
       final canManageAll = user.role == UserRole.admin;
       final managedTeamId = canManageAll ? null : profile.linkedTeamId;
       final requests = canManageAll
@@ -173,10 +174,10 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
                                 onPressed: team == null
                                     ? null
                                     : () => _showApproveDialog(
-                                          context,
-                                          request,
-                                          team,
-                                        ),
+                                        context,
+                                        request,
+                                        team,
+                                      ),
                                 icon: const Icon(Icons.check),
                                 label: const Text('Aprobar'),
                               ),
@@ -206,7 +207,11 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
     );
   }
 
-  void _showApproveDialog(BuildContext context, LinkRequest request, Team team) {
+  void _showApproveDialog(
+    BuildContext context,
+    LinkRequest request,
+    Team team,
+  ) {
     if (!_canManageAllRequests && _managedTeamId != team.id) {
       return;
     }
@@ -254,12 +259,16 @@ class _LinkRequestsPageState extends State<LinkRequestsPage> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: nameController,
+                      keyboardType: TextInputType.name,
+                      textCapitalization: TextCapitalization.words,
                       decoration: const InputDecoration(labelText: 'Nombre'),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: lastNameController,
-                      decoration: const InputDecoration(labelText: 'Apellidos'),
+                      keyboardType: TextInputType.name,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(labelText: 'Apellido'),
                     ),
                   ],
                 ],

@@ -40,7 +40,9 @@ class _HomePageState extends State<HomePage> {
     if (linkedTeamId != widget.team.id) {
       return widget.currentUser;
     }
-    return widget.team.members.where((m) => m.id == linkedMemberId).firstOrNull ??
+    return widget.team.members
+            .where((m) => m.id == linkedMemberId)
+            .firstOrNull ??
         widget.currentUser;
   }
 
@@ -66,6 +68,7 @@ class _HomePageState extends State<HomePage> {
       HistoryTab(
         team: widget.team,
         currentUser: actingMember,
+        currentProfile: widget.currentProfile,
         allTeams: widget.allTeams,
         suggestions: widget.suggestions,
       ),
@@ -86,7 +89,10 @@ class _HomePageState extends State<HomePage> {
             icon: Icon(Icons.pending_actions),
             label: 'Sugerencias',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Historico'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'Historico',
+          ),
         ],
       ),
     );

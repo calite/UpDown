@@ -1,163 +1,94 @@
-
----
-
-````markdown
 # UpDown
 
-Aplicación Flutter para la gestión de equipos y miembros, donde se pueden asignar **puntos positivos y negativos** según el desempeño de cada integrante.  
-El objetivo es dar seguimiento a las acciones de los miembros y permitir al administrador visualizar estadísticas y rankings de forma sencilla.
+Aplicacion Flutter para gestionar equipos, miembros y sugerencias de positivos/negativos.
 
----
+## Funcionalidades
 
-## ✨ Funcionalidades principales
+- Gestion de equipos y miembros.
+- Solicitudes de vinculacion con autoaprobacion opcional por equipo.
+- Roles: `admin`, `gestor`, `user`.
+- Historial de acciones por equipo e integrante.
+- Pantalla de usuarios para cambiar rol/equipo y eliminar usuarios.
+- Estadisticas configurables por secciones.
 
-- **Gestión de equipos**  
-  - Crear y listar equipos.  
-  - Activar/inactivar equipos.  
-  - Filtrar equipos activos.  
+## Requisitos
 
-- **Gestión de miembros**  
-  - Alta de nuevos miembros.  
-  - Baja lógica (no se borran, solo se marcan inactivos).  
-  - Asignación de positivos y negativos.  
-  - Historial detallado de acciones por miembro.  
+- Flutter 3.x
+- Dart
+- Firebase (Auth + Firestore)
+- Firebase CLI (para reglas y hosting)
 
-- **Ranking y puntuación**  
-  - Ranking dinámico por equipo según puntuación.  
-  - Valores de positivos y negativos parametrizables desde configuración.  
-
-- **Estadísticas visuales**  
-  - Totales globales (positivos/negativos).  
-  - Comparación entre equipos.  
-  - Detalle de cada integrante con gráficos.  
-  - Secciones activables/desactivables desde configuración.  
-
-- **Configuración centralizada**  
-  - Clase `AppConfig` para gestionar la puntuación y la visibilidad de estadísticas.  
-  - Pantalla de configuración accesible desde el menú lateral.  
-
-- **Menú lateral (Drawer)**  
-  - Navegación entre equipos, estadísticas, configuración y logout.  
-  - Presente en todas las pantallas principales.  
-
----
-
-## 🚀 Instalación y ejecución
-
-1. Clonar el repositorio:
-   ```bash
-   git clone <url-del-repositorio>
-   cd up_down
-````
-
-2. Instalar dependencias:
-
-   ```bash
-   flutter pub get
-   ```
-
-3. Ejecutar en navegador (modo web):
-
-   ```bash
-   flutter run -d chrome
-   ```
-
-   O en emulador Android/iOS:
-
-   ```bash
-   flutter run
-   ```
-
----
-
-## 📂 Estructura del proyecto
-
-```
-lib/
- ├── config/         # Configuración global (AppConfig)
- ├── data/           # Datos de prueba (mock data)
- ├── models/         # Modelos de negocio (Team, Member, HistoryItem)
- ├── pages/          # Páginas principales (login, teams, team_detail, history, stats, settings)
- ├── widgets/        # Widgets reutilizables (AppDrawer, MemberCard, TeamCard, etc.)
- └── main.dart       # Punto de entrada de la aplicación
-```
-
----
-
-## 📸 Mockups (futuros)
-
-* Pantalla de equipos con listado.
-* Pantalla de detalle de equipo con miembros y ranking.
-* Pantalla de estadísticas con gráficos.
-* Pantalla de configuración con switches y controles de puntuación.
-
----
-
-## 🛠️ Tecnologías
-
-* **Flutter** (3.x)
-* **Dart**
-* **fl\_chart** (para gráficos)
-* **Material Design**
-
----
-
-## 📌 Próximos pasos
-
-* Persistencia de datos en Firebase.
-* Autenticación real con Firebase Auth.
-* Estadísticas avanzadas con exportación.
-* Diseño más personalizado con temas y estilos.
-
----
-
-## 👨‍💻 Autor
-
-Proyecto desarrollado como práctica y evolución en Flutter por Daniel Campos.
-
-```
-
-
-## Firebase setup
-
-1. Crea un proyecto en Firebase y habilita Authentication (Email/Password).
-2. Agrega app Android e iOS y descarga:
-   - android/app/google-services.json
-   - ios/Runner/GoogleService-Info.plist
-3. Crea reglas/colecciones en Firestore para users y pp_state.
-4. Para Web, ejecuta con variables:
-   flutter run -d chrome --dart-define=FIREBASE_WEB_API_KEY=... --dart-define=FIREBASE_WEB_APP_ID=... --dart-define=FIREBASE_WEB_MESSAGING_SENDER_ID=... --dart-define=FIREBASE_WEB_PROJECT_ID=...
-5. Reglas por rol en Firestore:
-   - El proyecto incluye `firestore.rules`.
-   - Publica reglas con Firebase CLI:
-     `firebase deploy --only firestore:rules`
-
-## Levantar proyecto (PowerShell)
+## Setup rapido
 
 1. Instalar dependencias:
-   ```powershell
-   flutter pub get
-   ```
 
-2. Crear archivo local de variables (no se sube a git):
-   ```powershell
-   Copy-Item .env.web.example .env.web
-   ```
+```powershell
+flutter pub get
+```
+
+2. Crear variables locales para web:
+
+```powershell
+Copy-Item .env.web.example .env.web
+```
 
 3. Completar `.env.web` con credenciales Firebase Web.
 
 4. Ejecutar en local:
-   ```powershell
-   .\run_web.ps1
-   ```
+
+```powershell
+.\run_web.ps1
+```
 
 5. Ejecutar en release local (opcional):
-   ```powershell
-   .\run_web.ps1 -Release
-   ```
 
-Notas:
-- Si usas Git Bash, ejecuta el script así:
-  `powershell -ExecutionPolicy Bypass -File ./run_web.ps1`
-- El archivo `.env.web` está ignorado por git para no subir claves.
+```powershell
+.\run_web.ps1 -Release
+```
 
+## Firebase
+
+1. Crear proyecto en Firebase.
+2. Habilitar Authentication (Email/Password).
+3. Configurar Firestore y publicar reglas:
+
+```powershell
+firebase deploy --only firestore:rules
+```
+
+## Deploy
+
+Deploy completo (web + reglas):
+
+```powershell
+flutter build web
+firebase deploy --only firestore:rules,hosting
+```
+
+Solo reglas:
+
+```powershell
+firebase deploy --only firestore:rules
+```
+
+Solo hosting:
+
+```powershell
+firebase deploy --only hosting
+```
+
+Si hace falta iniciar sesion/seleccionar proyecto:
+
+```powershell
+firebase login
+firebase use updown-9f356
+```
+
+## Notas
+
+- El archivo `.env.web` no se sube a git.
+- Si usas Git Bash para scripts PowerShell:
+
+```bash
+powershell -ExecutionPolicy Bypass -File ./run_web.ps1
+```

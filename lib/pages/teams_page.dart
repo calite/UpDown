@@ -106,7 +106,10 @@ class _TeamsPageState extends State<TeamsPage> {
               children: [
                 Text(_error ?? 'No se pudo cargar la informacion.'),
                 const SizedBox(height: 12),
-                ElevatedButton(onPressed: _loadData, child: const Text('Reintentar')),
+                ElevatedButton(
+                  onPressed: _loadData,
+                  child: const Text('Reintentar'),
+                ),
               ],
             ),
           ),
@@ -179,7 +182,10 @@ class _TeamsPageState extends State<TeamsPage> {
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 child: ListTile(
-                  leading: GeneratedAvatar.rounded(seed: team.id, label: team.name),
+                  leading: GeneratedAvatar.rounded(
+                    seed: team.id,
+                    label: team.name,
+                  ),
                   title: Text(team.name),
                   subtitle: Text('${team.members.length} integrantes'),
                   trailing: _currentUser!.role == UserRole.admin
@@ -243,7 +249,10 @@ class _TeamsPageState extends State<TeamsPage> {
           decoration: const InputDecoration(hintText: 'Nombre del equipo'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final name = controller.text.trim();
@@ -261,7 +270,7 @@ class _TeamsPageState extends State<TeamsPage> {
             child: const Text('Crear'),
           ),
         ],
-            ),
+      ),
     );
   }
 
@@ -290,7 +299,10 @@ class _TeamsPageState extends State<TeamsPage> {
           decoration: const InputDecoration(hintText: 'Nuevo nombre'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final newName = controller.text.trim();
@@ -302,7 +314,9 @@ class _TeamsPageState extends State<TeamsPage> {
               Navigator.pop(context);
               await _runAction(() async {
                 setState(() {
-                  final teamIndex = _allTeams.indexWhere((t) => t.id == team.id);
+                  final teamIndex = _allTeams.indexWhere(
+                    (t) => t.id == team.id,
+                  );
                   if (teamIndex >= 0) {
                     _allTeams[teamIndex] = Team(
                       id: team.id,
@@ -429,14 +443,15 @@ class _TeamsPageState extends State<TeamsPage> {
                 late bool autoApproved;
                 try {
                   await _runAction(() async {
-                    autoApproved = await AppDataService.instance.createLinkRequest(
-                      userId: _currentProfile!.uid,
-                      email: _currentProfile!.email,
-                      name: _currentUser!.name,
-                      lastName: _currentUser!.lastName,
-                      team: selectedTeam,
-                      note: noteController.text,
-                    );
+                    autoApproved = await AppDataService.instance
+                        .createLinkRequest(
+                          userId: _currentProfile!.uid,
+                          email: _currentProfile!.email,
+                          name: _currentUser!.name,
+                          lastName: _currentUser!.lastName,
+                          team: selectedTeam,
+                          note: noteController.text,
+                        );
                   });
                 } catch (e) {
                   if (!mounted) {

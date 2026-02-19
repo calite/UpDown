@@ -33,10 +33,7 @@ class GeneratedAvatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: radius,
-      ),
+      decoration: BoxDecoration(color: background, borderRadius: radius),
       alignment: Alignment.center,
       child: Text(
         text,

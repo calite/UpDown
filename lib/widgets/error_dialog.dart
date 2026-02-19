@@ -21,9 +21,7 @@ Future<void> showErrorDialog(
     context: context,
     builder: (_) => AlertDialog(
       title: Text(title),
-      content: SingleChildScrollView(
-        child: SelectableText(body),
-      ),
+      content: SingleChildScrollView(child: SelectableText(body)),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),

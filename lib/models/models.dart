@@ -17,6 +17,7 @@ class Member {
   final String id;
   String name;
   String lastName;
+  String alias;
   String email;
   String emailLower;
   String? authUid;
@@ -30,6 +31,7 @@ class Member {
     String? id,
     required this.name,
     this.lastName = '',
+    this.alias = '',
     this.email = '',
     this.emailLower = '',
     this.authUid,
@@ -38,8 +40,8 @@ class Member {
     this.isActive = true,
     List<HistoryItem>? history,
     this.role = UserRole.user,
-  })  : id = id ?? _Id.next(),
-        history = history ?? [];
+  }) : id = id ?? _Id.next(),
+       history = history ?? [];
 
   int get totalScore {
     return positives - negatives;
@@ -58,6 +60,7 @@ class Member {
       'id': id,
       'name': name,
       'lastName': lastName,
+      'alias': alias,
       'email': email,
       'emailLower': emailLower,
       'authUid': authUid,
@@ -74,11 +77,14 @@ class Member {
     final rawName = map['name'] as String? ?? 'Sin nombre';
     final rawLastName = map['lastName'] as String?;
     final resolvedLastName = rawLastName ?? _extractLastName(rawName);
-    final resolvedName = rawLastName == null ? _extractFirstName(rawName) : rawName;
+    final resolvedName = rawLastName == null
+        ? _extractFirstName(rawName)
+        : rawName;
     return Member(
       id: map['id'] as String?,
       name: resolvedName,
       lastName: resolvedLastName,
+      alias: map['alias'] as String? ?? '',
       email: map['email'] as String? ?? '',
       emailLower: map['emailLower'] as String? ?? '',
       authUid: map['authUid'] as String?,
@@ -88,8 +94,8 @@ class Member {
       role: (map['role'] as String?) == UserRole.admin.name
           ? UserRole.admin
           : (map['role'] as String?) == UserRole.gestor.name
-              ? UserRole.gestor
-              : UserRole.user,
+          ? UserRole.gestor
+          : UserRole.user,
       history: historyData
           .whereType<Map>()
           .map((item) => HistoryItem.fromMap(Map<String, dynamic>.from(item)))
@@ -116,7 +122,8 @@ class TeamSettings {
 
   factory TeamSettings.fromMap(Map<String, dynamic> map) {
     return TeamSettings(
-      allowExternalSuggestions: map['allowExternalSuggestions'] as bool? ?? false,
+      allowExternalSuggestions:
+          map['allowExternalSuggestions'] as bool? ?? false,
       autoApproveJoinRequests: map['autoApproveJoinRequests'] as bool? ?? false,
     );
   }
@@ -138,8 +145,8 @@ class Team {
     this.isActive = true,
     TeamSettings? settings,
     List<HistoryItem>? teamHistory,
-  })  : id = id ?? _Id.next(),
-        settings = settings ?? TeamSettings() {
+  }) : id = id ?? _Id.next(),
+       settings = settings ?? TeamSettings() {
     if (teamHistory != null) {
       this.teamHistory.addAll(teamHistory);
     }
@@ -149,7 +156,8 @@ class Team {
       members.where((m) => m.role == UserRole.admin).toList();
 
   bool _canManageSuggestions(Member requester) {
-    return requester.role == UserRole.admin || requester.role == UserRole.gestor;
+    return requester.role == UserRole.admin ||
+        requester.role == UserRole.gestor;
   }
 
   void addAdmin(Member requester, Member newAdmin) {
@@ -184,7 +192,7 @@ class Team {
 
     teamHistory.add(
       HistoryItem(
-        'APROBADA: ${historyItem.description} (por ${requester.displayName})',
+        'APROBADA: ${historyItem.description} (aprobada por ${requester.displayName})',
         DateTime.now(),
       ),
     );
@@ -204,8 +212,8 @@ class Team {
     suggestion.rejectionComment = null;
 
     final description =
-        'SUGERENCIA RECHAZADA: ${suggestion.from.displayName} sugirio un '
-        '${suggestion.isPositive ? 'positivo' : 'negativo'} para '
+        'SUGERENCIA RECHAZADA: ${suggestion.from.displayName} propuso dar un '
+        '${suggestion.isPositive ? 'positivo' : 'negativo'} a '
         '${suggestion.to.displayName}: "${suggestion.comment}"';
 
     suggestion.to.history.add(HistoryItem(description, DateTime.now()));
@@ -226,11 +234,8 @@ class Team {
     required bool isPositive,
     required String comment,
   }) {
-    if (requester.role != UserRole.admin &&
-        requester.role != UserRole.gestor) {
-      throw Exception(
-        'Solo admin o gestor puede asignar positivos/negativos.',
-      );
+    if (requester.role != UserRole.admin && requester.role != UserRole.gestor) {
+      throw Exception('Solo admin o gestor puede asignar positivos/negativos.');
     }
 
     if (isPositive) {
@@ -240,8 +245,8 @@ class Team {
     }
 
     final description =
-        '${isPositive ? 'positivo' : 'negativo'} asignado por ${requester.displayName} '
-        'a ${target.displayName} ($comment)';
+        '${requester.displayName} le dio un ${isPositive ? 'positivo' : 'negativo'} '
+        'a ${target.displayName}: "$comment"';
 
     target.history.add(HistoryItem(description, DateTime.now()));
 
@@ -257,7 +262,8 @@ class Team {
       'isActive': isActive,
       'settings': settings.toMap(),
       'teamHistory': teamHistory.map((item) => item.toMap()).toList(),
-      if (includeMembers) 'members': members.map((member) => member.toMap()).toList(),
+      if (includeMembers)
+        'members': members.map((member) => member.toMap()).toList(),
     };
   }
 
@@ -289,20 +295,48 @@ class Team {
 class HistoryItem {
   final String description;
   final DateTime date;
+  final List<HistoryPlusOne> plusOnes;
 
-  HistoryItem(this.description, this.date);
+  HistoryItem(this.description, this.date, {List<HistoryPlusOne>? plusOnes})
+    : plusOnes = plusOnes ?? [];
 
   Map<String, dynamic> toMap() {
     return {
       'description': description,
       'date': date.toIso8601String(),
+      'plusOnes': plusOnes.map((item) => item.toMap()).toList(),
     };
   }
 
   factory HistoryItem.fromMap(Map<String, dynamic> map) {
+    final plusOnesData = (map['plusOnes'] as List<dynamic>? ?? []);
     return HistoryItem(
       map['description'] as String? ?? '',
       DateTime.tryParse(map['date'] as String? ?? '') ?? DateTime.now(),
+      plusOnes: plusOnesData
+          .whereType<Map>()
+          .map(
+            (item) => HistoryPlusOne.fromMap(Map<String, dynamic>.from(item)),
+          )
+          .toList(),
+    );
+  }
+}
+
+class HistoryPlusOne {
+  final String userUid;
+  final String displayName;
+
+  const HistoryPlusOne({required this.userUid, required this.displayName});
+
+  Map<String, dynamic> toMap() {
+    return {'userUid': userUid, 'displayName': displayName};
+  }
+
+  factory HistoryPlusOne.fromMap(Map<String, dynamic> map) {
+    return HistoryPlusOne(
+      userUid: map['userUid'] as String? ?? '',
+      displayName: map['displayName'] as String? ?? '',
     );
   }
 }
@@ -332,16 +366,19 @@ class Suggestion {
     DateTime? date,
     this.teamId,
     this.teamName,
-  })  : id = id ?? _Id.next(),
-        date = date ?? DateTime.now();
+  }) : id = id ?? _Id.next(),
+       date = date ?? DateTime.now();
 
   String get description =>
-      '${from.displayName} sugirio un ${isPositive ? 'positivo' : 'negativo'} '
-      'para ${to.displayName}: "$comment"';
+      '${from.displayName} propuso dar un ${isPositive ? 'positivo' : 'negativo'} '
+      'a ${to.displayName}: "$comment"';
 
   HistoryItem toHistoryItem() {
     final action = isPositive ? 'positivo' : 'negativo';
-    return HistoryItem('$action para ${to.displayName} ($comment)', date);
+    return HistoryItem(
+      '${from.displayName} le dio un $action a ${to.displayName}: "$comment"',
+      date,
+    );
   }
 
   Map<String, dynamic> toMap() {
@@ -372,17 +409,13 @@ class Suggestion {
     final fromId = map['fromMemberId'] as String?;
     final toId = map['toMemberId'] as String?;
 
-    final fromMember = _memberById(team, fromId) ??
-        Member(
-          id: fromId,
-          name: map['fromName'] as String? ?? 'Usuario',
-        );
+    final fromMember =
+        _memberById(team, fromId) ??
+        Member(id: fromId, name: map['fromName'] as String? ?? 'Usuario');
 
-    final toMember = _memberById(team, toId) ??
-        Member(
-          id: toId,
-          name: map['toName'] as String? ?? 'Usuario',
-        );
+    final toMember =
+        _memberById(team, toId) ??
+        Member(id: toId, name: map['toName'] as String? ?? 'Usuario');
 
     return Suggestion(
       id: map['id'] as String?,
@@ -416,6 +449,7 @@ class AppUserRecord {
   final String email;
   final String name;
   final String lastName;
+  final String alias;
   final UserRole role;
   final String? linkedTeamId;
   final String? linkedMemberId;
@@ -425,6 +459,7 @@ class AppUserRecord {
     required this.email,
     required this.name,
     required this.lastName,
+    required this.alias,
     required this.role,
     required this.linkedTeamId,
     required this.linkedMemberId,
@@ -440,13 +475,14 @@ class AppUserRecord {
     final role = roleRaw == UserRole.admin.name
         ? UserRole.admin
         : roleRaw == UserRole.gestor.name
-            ? UserRole.gestor
-            : UserRole.user;
+        ? UserRole.gestor
+        : UserRole.user;
     return AppUserRecord(
       uid: uid,
       email: map['email'] as String? ?? '',
       name: map['name'] as String? ?? '',
       lastName: map['lastName'] as String? ?? '',
+      alias: map['alias'] as String? ?? '',
       role: role,
       linkedTeamId: map['linkedTeamId'] as String?,
       linkedMemberId: map['linkedMemberId'] as String?,
@@ -533,7 +569,8 @@ class LinkRequest {
       teamName: map['teamName'] as String? ?? '',
       note: map['note'] as String? ?? '',
       createdAt:
-          DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
+          DateTime.tryParse(map['createdAt'] as String? ?? '') ??
+          DateTime.now(),
       status: status,
       memberId: map['memberId'] as String?,
       memberName: map['memberName'] as String?,
@@ -545,7 +582,11 @@ class LinkRequest {
 }
 
 String _extractFirstName(String fullName) {
-  final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = fullName
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (parts.isEmpty) {
     return 'Sin nombre';
   }
@@ -553,7 +594,11 @@ String _extractFirstName(String fullName) {
 }
 
 String _extractLastName(String fullName) {
-  final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = fullName
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (parts.length < 2) {
     return '';
   }

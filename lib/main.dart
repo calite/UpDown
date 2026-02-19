@@ -105,6 +105,9 @@ class UpDownApp extends StatelessWidget {
           if (args is Member) {
             return HistoryPage(member: args);
           }
+          if (args is Map<String, dynamic>) {
+            return HistoryPage(member: args['member'] as Member?, args: args);
+          }
           return HistoryPage();
         },
         '/link-requests': (context) => const LinkRequestsPage(),

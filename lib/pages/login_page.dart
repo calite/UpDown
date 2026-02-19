@@ -67,10 +67,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  String _friendlyAuthError(
-    Object error, {
-    required bool isRegisterMode,
-  }) {
+  String _friendlyAuthError(Object error, {required bool isRegisterMode}) {
     if (error is FirebaseAuthException) {
       if (!isRegisterMode) {
         switch (error.code) {
@@ -122,7 +119,11 @@ class _LoginPageState extends State<LoginPage> {
                       if (_isRegisterMode) ...[
                         TextFormField(
                           controller: _nameController,
-                          decoration: const InputDecoration(labelText: 'Nombre'),
+                          keyboardType: TextInputType.name,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre',
+                          ),
                           validator: (value) {
                             if (_isRegisterMode &&
                                 (value == null || value.trim().isEmpty)) {
@@ -134,11 +135,15 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _lastNameController,
-                          decoration: const InputDecoration(labelText: 'Apellidos'),
+                          keyboardType: TextInputType.name,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Apellido',
+                          ),
                           validator: (value) {
                             if (_isRegisterMode &&
                                 (value == null || value.trim().isEmpty)) {
-                              return 'Los apellidos son obligatorios';
+                              return 'Los apellido son obligatorios';
                             }
                             return null;
                           },
@@ -161,7 +166,9 @@ class _LoginPageState extends State<LoginPage> {
                       TextFormField(
                         controller: _passwordController,
                         obscureText: true,
-                        decoration: const InputDecoration(labelText: 'Password'),
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
+                        ),
                         validator: (value) {
                           if ((value?.length ?? 0) < 6) {
                             return 'Minimo 6 caracteres';
@@ -176,7 +183,9 @@ class _LoginPageState extends State<LoginPage> {
                             ? const SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(_isRegisterMode ? 'Registrarme' : 'Entrar'),
                       ),
@@ -184,7 +193,9 @@ class _LoginPageState extends State<LoginPage> {
                         onPressed: _loading
                             ? null
                             : () {
-                                setState(() => _isRegisterMode = !_isRegisterMode);
+                                setState(
+                                  () => _isRegisterMode = !_isRegisterMode,
+                                );
                               },
                         child: Text(
                           _isRegisterMode
